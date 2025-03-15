@@ -93,7 +93,7 @@ const authenticate = async (req, res, next) => {
 /**
  * Authorize access based on user roles.
  * Must be used after authenticate middleware.
- * Roles must be listed explicitly; super_admin is no longer implicitly allowed.
+ * super_admin is implicitly allowed access to all routes.
  */
 const authorize = (...roles) => {
   return (req, res, next) => {
@@ -101,7 +101,7 @@ const authorize = (...roles) => {
       return next(new ApiError('Authentication required', 401));
     }
 
-    if (roles.includes(req.user.role)) {
+    if (req.user.role === 'super_admin' || roles.includes(req.user.role)) {
       return next();
     }
 
