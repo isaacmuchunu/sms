@@ -19,23 +19,29 @@ const errorHandler = (err, req, res, next) => {
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 
-  // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    const message = `Resource not found with id: ${err.value}`;
-    error = new ApiError(message, 404);
-  }
-
-  // Mongoose duplicate key
-  if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
-    const message = `${field} already exists. Please use a different value.`;
+  // PostgreSQL unique violation (23505)
+  if (err.code === '23505') {
+    const field = err.constraint || 'field';
+    const message = `Duplicate field value: ${field}`;
     error = new ApiError(message, 400);
   }
 
-  // Mongoose validation error
-  if (err.name === 'ValidationError') {
-    const messages = Object.values(err.errors).map((val) => val.message);
-    const message = `Validation Error: ${messages.join('. ')}`;
+  // PostgreSQL foreign key violation (23503)
+  if (err.code === '23503') {
+    const message = 'Referenced record does not exist';
+    error = new ApiError(message, 400);
+  }
+
+  // PostgreSQL invalid text representation (22P02)
+  if (err.code === '22P02') {
+    const message = 'Invalid input';
+    error = new ApiError(message, 400);
+  }
+
+  // PostgreSQL not null violation (23502)
+  if (err.code === '23502') {
+    const field = err.column || 'field';
+    const message = `Missing required field: ${field}`;
     error = new ApiError(message, 400);
   }
 
