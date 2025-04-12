@@ -11,7 +11,7 @@ const LoadingSpinner = ({ size = 'md', className, fullScreen = false }) => {
   const spinner = (
     <div
       className={clsx(
-        'animate-spin rounded-full border-solid border-primary-600 border-t-transparent',
+        'animate-spin rounded-full border-solid border-accent-600 border-t-transparent',
         sizeClasses[size],
         className
       )}
@@ -22,10 +22,10 @@ const LoadingSpinner = ({ size = 'md', className, fullScreen = false }) => {
 
   if (fullScreen) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-[100dvh] w-screen items-center justify-center bg-[var(--bg)]">
         <div className="flex flex-col items-center gap-4">
           {spinner}
-          <p className="text-sm text-gray-500">Loading...</p>
+          <p className="text-sm text-zinc-500">Loading...</p>
         </div>
       </div>
     );
