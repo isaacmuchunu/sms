@@ -48,8 +48,8 @@ router.post('/logout', authController.logout);
 router.post('/set-password', authController.setPassword);
 
 // Protected routes
-router.post('/register', authenticate, authorize('admin'), authController.register);
-router.get('/users', authenticate, authorize('admin'), authController.getUsers);
+router.post('/register', authenticate, authorize('admin', 'super_admin'), authController.register);
+router.get('/users', authenticate, authorize('admin', 'super_admin'), authController.getUsers);
 router.post('/bulk-upload', authenticate, authorize('admin'), csvUpload.single('file'), handleBulkUpload);
 router.get('/bulk-upload/template', authenticate, authorize('admin'), bulkUploadController.getBulkUploadTemplate);
 router.get('/me', authenticate, authController.getMe);
