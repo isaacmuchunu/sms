@@ -24,9 +24,9 @@ const {
   listQuerySchema,
 } = require('../validators/fees');
 
-const readRoles = ['admin', 'principal', 'accountant'];
+const readRoles = ['admin', 'super_admin', 'principal', 'accountant'];
 const receiptRoles = ['admin', 'principal', 'accountant', 'parent', 'student'];
-const writeRoles = ['admin', 'accountant'];
+const writeRoles = ['admin', 'super_admin', 'accountant'];
 
 router.use(authenticate);
 
