@@ -1,0 +1,17 @@
+/**
+ * Escape special HTML characters in a string.
+ * @param {string} str
+ * @returns {string}
+ */
+const escapeHtml = (str) => {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/\//g, '&#x2F;');
+};
+
+module.exports = { escapeHtml };
