@@ -317,12 +317,12 @@ const getDefaultStudentPassword = () => {
   return password;
 };
 
-const createStudentUser = async (studentData, status = 'active', schoolId) => {
+const createStudentUser = async (studentData, status = 'active', schoolId, client = null) => {
   const email = studentData.email?.trim()
     ? studentData.email.trim().toLowerCase()
     : `${studentData.admissionNo.toLowerCase()}@student.school.com`;
 
-  const existingUser = await db.findOne('users', { email });
+  const existingUser = await db.findOne('users', { email }, client);
   if (existingUser) {
     return existingUser.id;
   }
@@ -337,7 +337,7 @@ const createStudentUser = async (studentData, status = 'active', schoolId) => {
     phone: studentData.phone || '',
     status,
     school_id: schoolId,
-  });
+  }, ['*'], client);
 
   return user.id;
 };
@@ -989,7 +989,7 @@ exports.getStudentResults = catchAsync(async (req, res) => {
   return ApiResponse.success(res, { marks, meta }, 'Student results retrieved');
 });
 
-// @desc    Bulk import students (validation preview stub)
+// @desc    Bulk import students
 // @route   POST /api/v1/students/bulk-import
 // @access  Admin
 exports.bulkImport = catchAsync(async (req, res) => {
@@ -998,6 +998,7 @@ exports.bulkImport = catchAsync(async (req, res) => {
   const results = {
     valid: [],
     errors: [],
+    created: [],
     total: students.length,
     validCount: 0,
     errorCount: 0,
@@ -1008,54 +1009,142 @@ exports.bulkImport = catchAsync(async (req, res) => {
   const schoolId = req.user.role === 'super_admin' && req.query.schoolId
     ? req.query.schoolId
     : req.user.school_id;
-  const existingRows = admissionNos.length
-    ? await db.raw(
-        'SELECT admission_no FROM students WHERE admission_no = ANY($1::text[]) AND school_id = $2',
-        [admissionNos, schoolId]
-      )
-    : [];
+
+  const [existingRows, guardianRows] = await Promise.all([
+    admissionNos.length
+      ? db.raw(
+          'SELECT admission_no FROM students WHERE admission_no = ANY($1::text[]) AND school_id = $2',
+          [admissionNos, schoolId]
+        )
+      : [],
+    (() => {
+      const guardianIds = [...new Set(students.flatMap((s) => s.guardians || []))];
+      return guardianIds.length
+        ? db.raw('SELECT id, school_id FROM guardians WHERE id = ANY($1::uuid[])', [guardianIds])
+        : [];
+    })(),
+  ]);
+
   const existingAdmissionNos = new Set(existingRows.map((s) => s.admission_no));
+  const validGuardianIds = new Set(
+    guardianRows
+      .filter((g) => !schoolId || g.school_id === schoolId)
+      .map((g) => g.id)
+  );
+
+  const getRowErrors = (studentData) => {
+    const errors = [];
+
+    if (!studentData.admissionNo) {
+      errors.push('admissionNo is required');
+    } else if (existingAdmissionNos.has(studentData.admissionNo)) {
+      errors.push(`Student with admissionNo ${studentData.admissionNo} already exists`);
+    } else if (seenAdmissionNos.has(studentData.admissionNo)) {
+      errors.push('Duplicate admissionNo in batch');
+    }
+
+    if (!studentData.firstName) errors.push('firstName is required');
+    if (!studentData.lastName) errors.push('lastName is required');
+    if (!studentData.gender) errors.push('gender is required');
+    if (!studentData.dob) errors.push('dob is required');
+    if (!studentData.class) errors.push('class is required');
+    if (!studentData.section) errors.push('section is required');
+    if (!studentData.academicYear) errors.push('academicYear is required');
+
+    if (studentData.guardians && studentData.guardians.length) {
+      const invalidGuardian = studentData.guardians.find((id) => !validGuardianIds.has(id));
+      if (invalidGuardian) {
+        errors.push(`Guardian ${invalidGuardian} not found or does not belong to your school`);
+      }
+    }
+
+    return errors;
+  };
+
+  const getComboKey = (classId, sectionId, academicYearId) =>
+    `${classId}:${sectionId}:${academicYearId}`;
+
+  const verifiedCombos = new Map();
+  const rollNoCache = new Map();
 
   for (let i = 0; i < students.length; i++) {
     const studentData = students[i];
-    const rowErrors = [];
+    const rowErrors = getRowErrors(studentData);
 
-    if (!studentData.admissionNo) {
-      rowErrors.push('admissionNo is required');
-    } else if (existingAdmissionNos.has(studentData.admissionNo)) {
-      rowErrors.push(`Student with admissionNo ${studentData.admissionNo} already exists`);
-    } else if (seenAdmissionNos.has(studentData.admissionNo)) {
-      rowErrors.push('Duplicate admissionNo in batch');
-    }
-
-    if (!studentData.firstName) rowErrors.push('firstName is required');
-    if (!studentData.lastName) rowErrors.push('lastName is required');
-    if (!studentData.gender) rowErrors.push('gender is required');
-    if (!studentData.dob) rowErrors.push('dob is required');
-    if (!studentData.class) rowErrors.push('class is required');
-    if (!studentData.section) rowErrors.push('section is required');
-    if (!studentData.academicYear) rowErrors.push('academicYear is required');
-
-    if (rowErrors.length === 0) {
-      seenAdmissionNos.add(studentData.admissionNo);
-      results.valid.push({ index: i, data: studentData });
-      results.validCount++;
-    } else {
+    if (rowErrors.length > 0) {
       results.errors.push({
         index: i,
         admissionNo: studentData.admissionNo,
         errors: rowErrors,
       });
       results.errorCount++;
+      continue;
+    }
+
+    seenAdmissionNos.add(studentData.admissionNo);
+
+    const key = getComboKey(studentData.class, studentData.section, studentData.academicYear);
+
+    try {
+      if (!verifiedCombos.has(key)) {
+        await verifyClassSectionAcademicYear(
+          { class: studentData.class, section: studentData.section, academicYear: studentData.academicYear },
+          schoolId
+        );
+        verifiedCombos.set(key, true);
+      }
+
+      let nextRollNo = rollNoCache.get(key);
+      if (!nextRollNo) {
+        const rollNo = await generateNextRollNo(studentData.class, studentData.section, studentData.academicYear);
+        nextRollNo = parseInt(rollNo, 10);
+      }
+      const rollNo = String(nextRollNo);
+      rollNoCache.set(key, nextRollNo + 1);
+
+      const studentRow = await db.transaction(async (tdb) => {
+        const userId = await createStudentUser(studentData, studentData.status || 'active', schoolId, tdb);
+        const insertData = toStudentDb({ ...studentData, rollNo, user: userId });
+        delete insertData.guardians;
+        insertData.school_id = schoolId;
+
+        const inserted = await tdb.insert('students', insertData);
+
+        for (const guardianId of studentData.guardians || []) {
+          await tdb.insert('student_guardians', {
+            student_id: inserted.id,
+            guardian_id: guardianId,
+            school_id: schoolId,
+          });
+        }
+
+        return inserted;
+      });
+
+      results.created.push({
+        index: i,
+        id: studentRow.id,
+        admissionNo: studentData.admissionNo,
+        rollNo,
+      });
+      results.valid.push({ index: i, data: studentData });
+      results.validCount++;
+    } catch (error) {
+      results.errors.push({
+        index: i,
+        admissionNo: studentData.admissionNo,
+        errors: [error.message || 'Failed to import student'],
+      });
+      results.errorCount++;
     }
   }
 
-  const statusCode = results.errorCount > 0 ? 207 : 200;
+  const statusCode = results.errorCount > 0 ? 207 : 201;
 
   return ApiResponse.success(
     res,
     { results },
-    `Bulk import preview completed: ${results.validCount} valid, ${results.errorCount} errors`,
+    `Bulk import completed: ${results.created.length} imported, ${results.errorCount} errors`,
     statusCode
   );
 });

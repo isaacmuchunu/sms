@@ -33,7 +33,7 @@ router.get(
   studentController.getMyChildren
 );
 
-// Bulk import validation preview stub
+// Bulk import students
 router.post(
   '/bulk-import',
   authorize('admin'),
