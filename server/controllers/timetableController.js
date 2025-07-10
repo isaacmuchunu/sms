@@ -543,13 +543,359 @@ exports.getConflicts = catchAsync(async (req, res) => {
   );
 });
 
-// ---------- Generation stub ----------
+const WORKING_DAYS = [1, 2, 3, 4, 5];
+const DEFAULT_PERIOD_COUNT = 8;
+const PERIOD_DURATION_MINUTES = 45;
+
+const parseTime = (time) => {
+  const [h, m] = String(time).split(':');
+  return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+};
+
+const formatMinutes = (totalMinutes) => {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+const defaultPeriodSchedule = (count = DEFAULT_PERIOD_COUNT) => {
+  return Array.from({ length: count }, (_, i) => {
+    const start = 8 * 60 + i * PERIOD_DURATION_MINUTES;
+    return {
+      periodNumber: i + 1,
+      startTime: formatMinutes(start),
+      endTime: formatMinutes(start + PERIOD_DURATION_MINUTES),
+    };
+  });
+};
+
+const classSlotKey = (classId, sectionId, day, period) =>
+  `${classId}|${sectionId}|${day}|${period}`;
+const teacherDayKey = (teacherId, day) => `${teacherId}|${day}`;
+const classDayKey = (classId, sectionId, day) => `${classId}|${sectionId}|${day}`;
+
+const overlapsAny = (intervals, start, end) => {
+  for (const interval of intervals || []) {
+    if (start < interval.end && end > interval.start) return true;
+  }
+  return false;
+};
+
+// ---------- Generation ----------
 
 exports.generateTimetable = catchAsync(async (req, res) => {
+  const { academicYear, classId, sectionId } = req.body;
+  const schoolFilter = getSchoolFilter(req);
+  const schoolId = schoolFilter.school_id || req.user.school_id;
+
+  const academicYearDoc = await db.findOne('academic_years', {
+    id: academicYear,
+    ...schoolFilter,
+  });
+  if (!academicYearDoc) {
+    throw new ApiError('Academic year not found', 404);
+  }
+
+  if (classId) {
+    const cls = await db.findOne('classes', { id: classId, ...schoolFilter });
+    if (!cls) {
+      throw new ApiError('Class not found', 404);
+    }
+  }
+  if (sectionId) {
+    const sectionWhere = { id: sectionId, ...schoolFilter };
+    if (classId) sectionWhere.class_id = classId;
+    const sec = await db.findOne('class_sections', sectionWhere);
+    if (!sec) {
+      throw new ApiError('Section not found', 404);
+    }
+  }
+
+  const result = await db.transaction(async (tdb) => {
+    const targetParams = [schoolId, academicYear];
+    let targetWhere = 'WHERE cs.school_id = $1 AND c.academic_year_id = $2';
+    if (classId) {
+      targetWhere += ` AND cs.class_id = $${targetParams.length + 1}`;
+      targetParams.push(classId);
+    }
+    if (sectionId) {
+      targetWhere += ` AND cs.id = $${targetParams.length + 1}`;
+      targetParams.push(sectionId);
+    }
+
+    const targets = await tdb.raw(
+      `
+      SELECT cs.id AS section_id, cs.class_id, cs.name AS section_name, cs.room_number,
+             c.name AS class_name, c.numeric_name
+      FROM class_sections cs
+      JOIN classes c ON c.id = cs.class_id
+      ${targetWhere}
+      ORDER BY c.numeric_name, cs.name
+      `,
+      targetParams
+    );
+
+    if (!targets.length) {
+      return { created: 0, unallocated: [], skipped: [] };
+    }
+
+    const sectionIds = targets.map((t) => t.section_id);
+    const placeholders = sectionIds.map((_, i) => `$${i + 2}`).join(', ');
+    const allocations = await tdb.raw(
+      `
+      SELECT cs.id, cs.class_id, cs.section_id, cs.subject_id,
+             cs.weekly_periods, cs.teacher_id, s.name AS subject_name
+      FROM class_subjects cs
+      JOIN subjects s ON s.id = cs.subject_id
+      WHERE cs.academic_year_id = $1 AND cs.section_id IN (${placeholders})
+      ORDER BY cs.class_id, cs.section_id, s.name
+      `,
+      [academicYear, ...sectionIds]
+    );
+
+    if (!allocations.length) {
+      return { created: 0, unallocated: [], skipped: [] };
+    }
+
+    const subjectIds = [...new Set(allocations.map((a) => a.subject_id))];
+    const candidatesBySubject = {};
+    if (subjectIds.length) {
+      const candPlaceholders = subjectIds.map((_, i) => `$${i + 2}`).join(', ');
+      const candidates = await tdb.raw(
+        `
+        SELECT teacher_id, subject_id
+        FROM teacher_subjects
+        WHERE school_id = $1 AND subject_id IN (${candPlaceholders})
+        `,
+        [schoolId, ...subjectIds]
+      );
+      for (const c of candidates) {
+        if (!candidatesBySubject[c.subject_id]) {
+          candidatesBySubject[c.subject_id] = [];
+        }
+        candidatesBySubject[c.subject_id].push(c.teacher_id);
+      }
+    }
+
+    const existing = await tdb.raw(
+      `
+      SELECT teacher_id, class_id, section_id, day_of_week, period_number,
+             start_time, end_time
+      FROM timetable_entries
+      WHERE academic_year_id = $1 AND school_id = $2
+      `,
+      [academicYear, schoolId]
+    );
+
+    const periodRows = await tdb.raw(
+      `
+      SELECT DISTINCT period_number, start_time, end_time
+      FROM timetable_entries
+      WHERE academic_year_id = $1 AND school_id = $2
+      ORDER BY period_number
+      `,
+      [academicYear, schoolId]
+    );
+
+    let schedule = [];
+    if (periodRows.length) {
+      const byPeriod = {};
+      for (const r of periodRows) {
+        byPeriod[r.period_number] = r;
+      }
+      const maxExistingPeriod = Math.max(...periodRows.map((r) => r.period_number));
+      let lastEnd = 8 * 60;
+      const periodCount = Math.max(maxExistingPeriod, DEFAULT_PERIOD_COUNT);
+      for (let p = 1; p <= periodCount; p += 1) {
+        if (byPeriod[p]) {
+          schedule.push({
+            periodNumber: p,
+            startTime: byPeriod[p].start_time,
+            endTime: byPeriod[p].end_time,
+          });
+          lastEnd = parseTime(byPeriod[p].end_time);
+        } else {
+          const start = lastEnd;
+          schedule.push({
+            periodNumber: p,
+            startTime: formatMinutes(start),
+            endTime: formatMinutes(start + PERIOD_DURATION_MINUTES),
+          });
+          lastEnd = start + PERIOD_DURATION_MINUTES;
+        }
+      }
+    } else {
+      schedule = defaultPeriodSchedule(DEFAULT_PERIOD_COUNT);
+    }
+
+    const occupiedClassPeriods = new Set();
+    const classBookings = new Map();
+    const teacherBookings = new Map();
+    const teacherLoad = new Map();
+    for (const e of existing) {
+      occupiedClassPeriods.add(
+        classSlotKey(e.class_id, e.section_id, e.day_of_week, e.period_number)
+      );
+
+      const start = parseTime(e.start_time);
+      const end = parseTime(e.end_time);
+      const cDayKey = classDayKey(e.class_id, e.section_id, e.day_of_week);
+      if (!classBookings.has(cDayKey)) classBookings.set(cDayKey, []);
+      classBookings.get(cDayKey).push({ start, end });
+
+      if (e.teacher_id) {
+        const tDayKey = teacherDayKey(e.teacher_id, e.day_of_week);
+        if (!teacherBookings.has(tDayKey)) teacherBookings.set(tDayKey, []);
+        teacherBookings.get(tDayKey).push({ start, end });
+        teacherLoad.set(e.teacher_id, (teacherLoad.get(e.teacher_id) || 0) + 1);
+      }
+    }
+
+    const allocationsBySection = {};
+    for (const a of allocations) {
+      const key = `${a.class_id}|${a.section_id}`;
+      if (!allocationsBySection[key]) {
+        allocationsBySection[key] = [];
+      }
+      allocationsBySection[key].push(a);
+    }
+
+    const unallocated = [];
+    const skipped = [];
+    let created = 0;
+
+    for (const section of targets) {
+      const sectionAllocations = allocationsBySection[`${section.class_id}|${section.section_id}`];
+      if (!sectionAllocations) continue;
+
+      const sessions = [];
+      for (const a of sectionAllocations) {
+        const candidates = a.teacher_id
+          ? null
+          : candidatesBySubject[a.subject_id] || [];
+        for (let i = 0; i < a.weekly_periods; i += 1) {
+          sessions.push({
+            classId: a.class_id,
+            sectionId: a.section_id,
+            subjectId: a.subject_id,
+            subjectName: a.subject_name,
+            teacherId: a.teacher_id,
+            candidates,
+          });
+        }
+      }
+
+      while (schedule.length * WORKING_DAYS.length < sessions.length) {
+        const last = schedule[schedule.length - 1];
+        const start = parseTime(last.endTime);
+        schedule.push({
+          periodNumber: schedule.length + 1,
+          startTime: formatMinutes(start),
+          endTime: formatMinutes(start + PERIOD_DURATION_MINUTES),
+        });
+      }
+
+      for (const session of sessions) {
+        const teacherCandidates = session.teacherId
+          ? [session.teacherId]
+          : session.candidates;
+
+        if (!teacherCandidates || !teacherCandidates.length) {
+          skipped.push({
+            classId: session.classId,
+            className: section.class_name,
+            sectionId: session.sectionId,
+            sectionName: section.section_name,
+            subjectId: session.subjectId,
+            subjectName: session.subjectName,
+            reason: 'No teacher assigned or qualified',
+          });
+          continue;
+        }
+
+        let assigned = false;
+        for (const day of WORKING_DAYS) {
+          for (const period of schedule) {
+            const cKey = classSlotKey(
+              session.classId,
+              session.sectionId,
+              day,
+              period.periodNumber
+            );
+            if (occupiedClassPeriods.has(cKey)) continue;
+
+            const slotStart = parseTime(period.startTime);
+            const slotEnd = parseTime(period.endTime);
+            const cDayKey = classDayKey(session.classId, session.sectionId, day);
+            if (overlapsAny(classBookings.get(cDayKey), slotStart, slotEnd)) continue;
+
+            let bestTeacher = null;
+            let bestLoad = Infinity;
+            for (const tid of teacherCandidates) {
+              const tDayKey = teacherDayKey(tid, day);
+              if (overlapsAny(teacherBookings.get(tDayKey), slotStart, slotEnd)) continue;
+              const load = teacherLoad.get(tid) || 0;
+              if (load < bestLoad) {
+                bestLoad = load;
+                bestTeacher = tid;
+              }
+            }
+
+            if (!bestTeacher) continue;
+
+            await tdb.insert('timetable_entries', {
+              school_id: schoolId,
+              academic_year_id: academicYear,
+              class_id: session.classId,
+              section_id: session.sectionId,
+              subject_id: session.subjectId,
+              teacher_id: bestTeacher,
+              day_of_week: day,
+              period_number: period.periodNumber,
+              start_time: period.startTime,
+              end_time: period.endTime,
+              room_number: section.room_number || '',
+              type: 'regular',
+              is_recurring: true,
+            });
+
+            occupiedClassPeriods.add(cKey);
+            if (!classBookings.has(cDayKey)) classBookings.set(cDayKey, []);
+            classBookings.get(cDayKey).push({ start: slotStart, end: slotEnd });
+            const tDayKey = teacherDayKey(bestTeacher, day);
+            if (!teacherBookings.has(tDayKey)) teacherBookings.set(tDayKey, []);
+            teacherBookings.get(tDayKey).push({ start: slotStart, end: slotEnd });
+            teacherLoad.set(bestTeacher, bestLoad + 1);
+            created += 1;
+            assigned = true;
+            break;
+          }
+          if (assigned) break;
+        }
+
+        if (!assigned) {
+          unallocated.push({
+            classId: session.classId,
+            className: section.class_name,
+            sectionId: session.sectionId,
+            sectionName: section.section_name,
+            subjectId: session.subjectId,
+            subjectName: session.subjectName,
+          });
+        }
+      }
+    }
+
+    return { created, unallocated, skipped };
+  });
+
   return ApiResponse.success(
     res,
-    null,
-    'Timetable generation is not yet implemented. Use individual CRUD endpoints.',
-    501
+    {
+      created: result.created,
+      unallocated: result.unallocated,
+      skipped: result.skipped,
+    },
+    'Timetable generated successfully'
   );
 });
