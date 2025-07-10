@@ -3,7 +3,7 @@ import api from '../services/api';
 
 const useFetch = (url, options = {}) => {
   const { immediate = true, params = {} } = options;
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(undefined);
   const [loading, setLoading] = useState(immediate);
   const [error, setError] = useState(null);
   const abortControllerRef = useRef(null);
