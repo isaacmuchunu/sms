@@ -207,6 +207,32 @@ const templates = {
     };
   },
 
+  meetingReminder: (data) => {
+    const safeGuardianName = escapeHtml(data.guardianName);
+    const safeStudentName = escapeHtml(data.studentName);
+    const safeTitle = escapeHtml(data.title);
+    const safeScheduledAt = escapeHtml(data.scheduledAt);
+    const safeDuration = escapeHtml(String(data.duration || ''));
+    const safeLocation = data.location ? escapeHtml(data.location) : null;
+    const safeMeetLink = data.meetLink ? escapeHtml(data.meetLink) : null;
+    return {
+      subject: `Reminder: ${safeTitle}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2c5282;">Meeting Reminder</h2>
+          <p>Dear ${safeGuardianName},</p>
+          <p>This is a friendly reminder about the upcoming meeting regarding <strong>${safeStudentName}</strong>.</p>
+          <p><strong>Title:</strong> ${safeTitle}</p>
+          <p><strong>Date & Time:</strong> ${safeScheduledAt}</p>
+          <p><strong>Duration:</strong> ${safeDuration} minutes</p>
+          ${safeLocation ? `<p><strong>Location:</strong> ${safeLocation}</p>` : ''}
+          ${safeMeetLink ? `<p><strong>Join link:</strong> <a href="${safeMeetLink}">${safeMeetLink}</a></p>` : ''}
+          <p>Please login to the parent portal for more details.</p>
+        </div>
+      `,
+    };
+  },
+
   feeReminder: (data) => {
     const safeParentName = escapeHtml(data.parentName);
     const safeStudentName = escapeHtml(data.studentName);
