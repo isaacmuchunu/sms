@@ -35,6 +35,8 @@ import UserList from './pages/Users/UserList';
 import SchoolList from './pages/Schools/SchoolList';
 import ModuleRequests from './pages/Modules/ModuleRequests';
 import SetPassword from './pages/Auth/SetPassword';
+import ForgotPassword from './pages/Auth/ForgotPassword';
+import ResetPassword from './pages/Auth/ResetPassword';
 import ParentDashboard from './pages/Parent/ParentDashboard';
 import ParentAttendance from './pages/Parent/ParentAttendance';
 import ParentFees from './pages/Parent/ParentFees';
@@ -61,6 +63,8 @@ const App = () => {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/set-password" element={<SetPassword />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route
           element={
             <ProtectedRoute>
