@@ -12,6 +12,7 @@ import {
   Student as StudentIcon,
   Check,
   X,
+  UploadSimple,
 } from '@phosphor-icons/react';
 import useFetch from '../../hooks/useFetch';
 import useAuth from '../../hooks/useAuth';
@@ -24,6 +25,7 @@ import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
+import BulkImportModal from './BulkImportModal';
 import toast from 'react-hot-toast';
 
 const STATUS_VARIANTS = {
@@ -91,6 +93,7 @@ const StudentList = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [actionId, setActionId] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
   const classOptions = useMemo(() => {
@@ -196,10 +199,16 @@ const StudentList = () => {
           </p>
         </div>
         {isAdmin && (
-          <Button as={Link} to="/students/new">
-            <Plus size={18} weight="bold" />
-            Add student
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <UploadSimple size={18} weight="bold" />
+              Bulk import
+            </Button>
+            <Button as={Link} to="/students/new">
+              <Plus size={18} weight="bold" />
+              Add student
+            </Button>
+          </div>
         )}
       </motion.div>
 
@@ -459,6 +468,12 @@ const StudentList = () => {
           )}
         </Card>
       </motion.div>
+
+      <BulkImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => refetch()}
+      />
 
       <Modal
         isOpen={!!deleteId}
