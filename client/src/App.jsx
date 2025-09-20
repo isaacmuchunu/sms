@@ -14,6 +14,7 @@ import TeacherForm from './pages/Teachers/TeacherForm';
 import TeacherDetail from './pages/Teachers/TeacherDetail';
 import ClassList from './pages/Classes/ClassList';
 import SubjectList from './pages/Subjects/SubjectList';
+import Timetable from './pages/Academics/Timetable';
 import AttendanceMark from './pages/Attendance/AttendanceMark';
 import AttendanceReport from './pages/Attendance/AttendanceReport';
 import ExamList from './pages/Exams/ExamList';
@@ -85,6 +86,7 @@ const App = () => {
           <Route path="/module-requests" element={<ProtectedRoute allowedRoles={['admin']}><ModuleRequests /></ProtectedRoute>} />
           <Route path="/classes" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><ClassList /></ProtectedRoute>} />
           <Route path="/subjects" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><SubjectList /></ProtectedRoute>} />
+          <Route path="/timetable" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><Timetable /></ProtectedRoute>} />
           <Route path="/attendance" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><AttendanceMark /></ProtectedRoute>} />
           <Route path="/attendance/report" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><AttendanceReport /></ProtectedRoute>} />
           <Route path="/exams" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><ExamList /></ProtectedRoute>} />

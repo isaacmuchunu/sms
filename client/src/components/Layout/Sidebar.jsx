@@ -81,6 +81,7 @@ const getNavigationGroups = (role, modules = {}) => {
       items: [
         { key: 'classes', label: 'Classes', icon: BookOpen, path: '/classes', allowedRoles: ['admin', 'teacher', 'principal'] },
         { key: 'subjects', label: 'Subjects', icon: Books, path: '/subjects', allowedRoles: ['admin', 'teacher', 'principal'] },
+        { key: 'timetable', label: 'Timetable', icon: Calendar, path: '/timetable', allowedRoles: ['admin', 'teacher', 'principal'] },
       ],
     },
     {
