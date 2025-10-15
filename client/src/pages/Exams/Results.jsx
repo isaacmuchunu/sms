@@ -20,6 +20,11 @@ import Badge from '../../components/ui/Badge';
 import Skeleton from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
 
+const getFullName = (student) =>
+  student?.fullName ||
+  [student?.firstName, student?.lastName].filter(Boolean).join(' ') ||
+  'Unnamed';
+
 const statusBadgeVariant = (result) => (result === 'pass' ? 'success' : 'danger');
 
 const gradeBadgeVariant = (grade) => {
@@ -123,7 +128,80 @@ const Results = () => {
   }, [studentResults]);
 
   const handleExport = () => {
-    toast('Export feature coming soon');
+    if (!resultData || rankedResults.length === 0) {
+      toast.error('No results to export');
+      return;
+    }
+
+    const escapeCsv = (cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`;
+
+    const examLabel = examOptions.find((o) => o.value === selectedExam)?.label || selectedExam;
+    const classLabel = classOptions.find((o) => o.value === selectedClass)?.label || selectedClass;
+    const sectionLabel =
+      sectionOptions.find((o) => o.value === selectedSection)?.label ||
+      (selectedSection ? selectedSection : 'All sections');
+
+    const rows = [
+      ['Exam', examLabel],
+      ['Class', classLabel],
+      ['Section', sectionLabel],
+      [],
+      ['Summary'],
+      ['Total Students', summary?.totalStudents ?? 0],
+      ['Passed', summary?.passCount ?? 0],
+      ['Failed', summary?.failCount ?? 0],
+      ['Pass Rate %', summary?.passPercentage ?? 0],
+      ['Class Average %', summary?.classAverage ?? 0],
+      [],
+      ['Student Results'],
+      ['Rank', 'Roll No', 'Name', 'Total', 'Max', 'Percentage', 'Grade', 'Result'],
+      ...rankedResults.map((r) => [
+        r.rank,
+        r.student?.rollNo ?? '',
+        getFullName(r.student),
+        r.totalObtained,
+        r.totalMax,
+        `${r.percentage}%`,
+        r.grade,
+        r.result === 'pass' ? 'Pass' : 'Fail',
+      ]),
+    ];
+
+    if (subjectAverages.length > 0) {
+      rows.push([]);
+      rows.push(['Subject-wise Performance']);
+      rows.push(['Subject', 'Code', 'Average', 'Highest', 'Lowest', 'Students']);
+      subjectAverages.forEach((s) =>
+        rows.push([
+          s.subject?.name ?? '',
+          s.subject?.code ?? '',
+          s.average,
+          s.highest,
+          s.lowest,
+          s.totalStudents,
+        ])
+      );
+    }
+
+    const csv = rows
+      .map((row) => row.map(escapeCsv).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+
+    const safeName = (str) => String(str).replace(/[^a-zA-Z0-9_\-]/g, '_');
+    link.download = `results-${safeName(examLabel)}-${safeName(classLabel)}${
+      selectedSection ? `-${safeName(sectionLabel)}` : ''
+    }.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success('Results exported as CSV');
   };
 
   const selectorsReady = selectedExam && selectedClass;
@@ -144,9 +222,14 @@ const Results = () => {
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Results</h1>
           <p className="mt-1 text-sm text-zinc-500">View exam results and class performance</p>
         </div>
-        <Button variant="outline" onClick={handleExport} className="self-start">
+        <Button
+          variant="outline"
+          onClick={handleExport}
+          disabled={!selectorsReady || resultLoading || !resultData || rankedResults.length === 0}
+          className="self-start"
+        >
           <DownloadSimple size={18} weight="bold" />
-          Export Report Cards
+          Export CSV
         </Button>
       </motion.div>
 
