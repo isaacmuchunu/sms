@@ -26,7 +26,14 @@ import FeeReports from './pages/Fees/FeeReports';
 import BookList from './pages/Library/BookList';
 import BookIssue from './pages/Library/BookIssue';
 import RouteList from './pages/Transport/RouteList';
+import VehicleList from './pages/Transport/VehicleList';
+import TransportAllocations from './pages/Transport/TransportAllocations';
 import RoomList from './pages/Hostel/RoomList';
+import HostelList from './pages/Hostel/HostelList';
+import HostelAllocations from './pages/Hostel/HostelAllocations';
+import VisitorLog from './pages/Hostel/VisitorLog';
+import ClassSubjectAssignments from './pages/Academics/ClassSubjectAssignments';
+import TeacherWorkload from './pages/Teachers/TeacherWorkload';
 import Analytics from './pages/Reports/Analytics';
 import Announcements from './pages/Notifications/Announcements';
 import NotificationList from './pages/Notifications/NotificationList';
@@ -44,6 +51,7 @@ import ParentFees from './pages/Parent/ParentFees';
 import ParentResults from './pages/Parent/ParentResults';
 import ParentMeetings from './pages/Parent/ParentMeetings';
 import ParentLibrary from './pages/Parent/ParentLibrary';
+import ParentMessages from './pages/Parent/ParentMessages';
 
 const RoleBasedRedirect = ({ fallback = '/dashboard' }) => {
   const { user, isAuthenticated } = useAuth();
@@ -81,11 +89,13 @@ const App = () => {
           <Route path="/teachers/new" element={<ProtectedRoute allowedRoles={['admin', 'super_admin']}><TeacherForm /></ProtectedRoute>} />
           <Route path="/teachers/:id" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'teacher', 'principal']}><TeacherDetail /></ProtectedRoute>} />
           <Route path="/teachers/:id/edit" element={<ProtectedRoute allowedRoles={['admin', 'super_admin']}><TeacherForm /></ProtectedRoute>} />
+          <Route path="/teachers/:id/workload" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'teacher', 'principal']}><TeacherWorkload /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute allowedRoles={['admin', 'super_admin']}><UserList /></ProtectedRoute>} />
           <Route path="/schools" element={<ProtectedRoute allowedRoles={['super_admin']}><SchoolList /></ProtectedRoute>} />
           <Route path="/module-requests" element={<ProtectedRoute allowedRoles={['admin']}><ModuleRequests /></ProtectedRoute>} />
           <Route path="/classes" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><ClassList /></ProtectedRoute>} />
           <Route path="/subjects" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><SubjectList /></ProtectedRoute>} />
+          <Route path="/class-subjects" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><ClassSubjectAssignments /></ProtectedRoute>} />
           <Route path="/timetable" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><Timetable /></ProtectedRoute>} />
           <Route path="/attendance" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><AttendanceMark /></ProtectedRoute>} />
           <Route path="/attendance/report" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher']}><AttendanceReport /></ProtectedRoute>} />
@@ -98,7 +108,12 @@ const App = () => {
           <Route path="/library" element={<ModuleProtectedRoute module="library" allowedRoles={['admin', 'librarian', 'teacher', 'student', 'super_admin']}><BookList /></ModuleProtectedRoute>} />
           <Route path="/library/issue" element={<ModuleProtectedRoute module="library" allowedRoles={['admin', 'librarian']}><BookIssue /></ModuleProtectedRoute>} />
           <Route path="/transport" element={<ModuleProtectedRoute module="transport" allowedRoles={['admin', 'transport_manager']}><RouteList /></ModuleProtectedRoute>} />
+          <Route path="/transport/vehicles" element={<ModuleProtectedRoute module="transport" allowedRoles={['admin', 'transport_manager']}><VehicleList /></ModuleProtectedRoute>} />
+          <Route path="/transport/allocations" element={<ModuleProtectedRoute module="transport" allowedRoles={['admin', 'transport_manager']}><TransportAllocations /></ModuleProtectedRoute>} />
           <Route path="/hostel" element={<ModuleProtectedRoute module="hostel" allowedRoles={['admin', 'warden']}><RoomList /></ModuleProtectedRoute>} />
+          <Route path="/hostel/hostels" element={<ModuleProtectedRoute module="hostel" allowedRoles={['admin', 'warden']}><HostelList /></ModuleProtectedRoute>} />
+          <Route path="/hostel/allocations" element={<ModuleProtectedRoute module="hostel" allowedRoles={['admin', 'warden']}><HostelAllocations /></ModuleProtectedRoute>} />
+          <Route path="/hostel/visitor-logs" element={<ModuleProtectedRoute module="hostel" allowedRoles={['admin', 'warden']}><VisitorLog /></ModuleProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'teacher', 'principal']}><Analytics /></ProtectedRoute>} />
           <Route path="/announcements" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher', 'staff']}><Announcements /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute allowedRoles={['admin', 'principal', 'teacher', 'staff', 'student', 'parent']}><NotificationList /></ProtectedRoute>} />
@@ -110,6 +125,7 @@ const App = () => {
           <Route path="/parent/results" element={<ProtectedRoute allowedRoles={['parent']}><ParentResults /></ProtectedRoute>} />
           <Route path="/parent/meetings" element={<ProtectedRoute allowedRoles={['parent']}><ParentMeetings /></ProtectedRoute>} />
           <Route path="/parent/library" element={<ProtectedRoute allowedRoles={['parent']}><ParentLibrary /></ProtectedRoute>} />
+          <Route path="/parent/messages" element={<ProtectedRoute allowedRoles={['parent']}><ParentMessages /></ProtectedRoute>} />
           <Route path="/" element={<RoleBasedRedirect />} />
         </Route>
         <Route path="*" element={<RoleBasedRedirect />} />

@@ -55,6 +55,7 @@ const getNavigationGroups = (role, modules = {}) => {
         title: 'School',
         items: [
           { key: 'parent-meetings', label: 'Meetings', icon: Calendar, path: '/parent/meetings' },
+          { key: 'parent-messages', label: 'Messages', icon: Envelope, path: '/parent/messages' },
           { key: 'announcements', label: 'Announcements', icon: Bell, path: '/announcements' },
           { key: 'notifications', label: 'Notifications', icon: Envelope, path: '/notifications' },
         ],
@@ -81,6 +82,7 @@ const getNavigationGroups = (role, modules = {}) => {
       items: [
         { key: 'classes', label: 'Classes', icon: BookOpen, path: '/classes', allowedRoles: ['admin', 'teacher', 'principal'] },
         { key: 'subjects', label: 'Subjects', icon: Books, path: '/subjects', allowedRoles: ['admin', 'teacher', 'principal'] },
+        { key: 'class-subjects', label: 'Class Subjects', icon: Books, path: '/class-subjects', allowedRoles: ['admin', 'teacher', 'principal'] },
         { key: 'timetable', label: 'Timetable', icon: Calendar, path: '/timetable', allowedRoles: ['admin', 'teacher', 'principal'] },
       ],
     },
@@ -103,8 +105,13 @@ const getNavigationGroups = (role, modules = {}) => {
       title: 'Facilities',
       items: [
         { key: 'library', label: 'Library', icon: Books, path: '/library', allowedRoles: ['admin', 'librarian', 'teacher', 'student'], module: 'library' },
-        { key: 'transport', label: 'Transport', icon: Bus, path: '/transport', allowedRoles: ['admin', 'transport_manager'], module: 'transport' },
-        { key: 'hostel', label: 'Hostel', icon: House, path: '/hostel', allowedRoles: ['admin', 'warden'], module: 'hostel' },
+        { key: 'transport', label: 'Routes', icon: Bus, path: '/transport', allowedRoles: ['admin', 'transport_manager'], module: 'transport' },
+        { key: 'transport-vehicles', label: 'Vehicles', icon: Bus, path: '/transport/vehicles', allowedRoles: ['admin', 'transport_manager'], module: 'transport' },
+        { key: 'transport-allocations', label: 'Allocations', icon: Users, path: '/transport/allocations', allowedRoles: ['admin', 'transport_manager'], module: 'transport' },
+        { key: 'hostel', label: 'Rooms', icon: House, path: '/hostel', allowedRoles: ['admin', 'warden'], module: 'hostel' },
+        { key: 'hostels', label: 'Hostels', icon: Buildings, path: '/hostel/hostels', allowedRoles: ['admin', 'warden'], module: 'hostel' },
+        { key: 'hostel-allocations', label: 'Allocations', icon: UsersThree, path: '/hostel/allocations', allowedRoles: ['admin', 'warden'], module: 'hostel' },
+        { key: 'visitor-logs', label: 'Visitor Logs', icon: User, path: '/hostel/visitor-logs', allowedRoles: ['admin', 'warden'], module: 'hostel' },
       ],
     },
     {
