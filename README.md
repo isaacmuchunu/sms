@@ -1,6 +1,6 @@
 # School Management System (SMS)
 
-> Full-stack School Management Application built with **Node.js**, **Express**, **MongoDB**, and **React 18**.
+> Full-stack School Management Application built with **Node.js**, **Express**, **PostgreSQL (Neon)**, and **React 18**.
 
 ## Features
 
@@ -43,8 +43,8 @@ sms/
 │   ├── server.js             # Entry point
 │   ├── .env.example          # Environment variables template
 │   ├── config/
-│   │   └── db.js             # MongoDB connection
-│   ├── models/               # Mongoose schemas (12 models)
+│   │   └── db.js             # Neon/PostgreSQL connection
+│   ├── db/                   # Schema, migrations, and SQL query helpers
 │   ├── controllers/          # Route handlers (13 controllers)
 │   ├── routes/               # API route definitions (14 routes)
 │   ├── middleware/           # Auth, error handling, upload
@@ -91,7 +91,7 @@ sms/
 
 - **Node.js** 20+ (LTS recommended)
 - **npm** 10+ or **yarn**
-- **MongoDB** 7+ (local or Atlas cloud)
+- **PostgreSQL** 14+ or a **Neon** Postgres database
 - **Git**
 
 ---
@@ -112,23 +112,49 @@ cd sms
 cd server
 npm install
 cp .env.example .env
-# Edit .env with your MongoDB URI and JWT secrets
+# Edit .env with your DATABASE_URL and JWT secrets
 ```
 
-### 3. Seed the Database
+### 3. Migrate and Seed the Database
+
+Run the migration to create the PostgreSQL schema, then seed the base user accounts:
+
+```bash
+npm run migrate
+npm run seed:users
+```
+
+To load the full demonstration dataset instead, run:
 
 ```bash
 npm run seed
 ```
 
-This creates:
-- Admin user: `admin@school.com` / `Admin@12345`
-- 12 classes (Grade 1-12)
-- 10 subjects
-- 3 sample teachers
-- 20 sample students
-- Fee heads and fee structures for every class
-- Library books, transport routes/vehicles, and hostel rooms
+This creates rich, realistic Kenyan school data in PostgreSQL:
+
+| Entity | Count |
+|--------|-------|
+| Academic Years | 1 (2024-2025) |
+| Classes / Sections | 12 classes (Grade 1-12) × 4 sections (A-D) |
+| Subjects | 18 (12 core + 4 elective + 2 co-curricular) |
+| Teachers / Staff | 15 with user accounts |
+| Students | 200 with user accounts |
+| Guardians | ~300 with parent portal accounts |
+| Class-Subject Assignments | ~430 |
+| Timetable Entries | 1,440 (5 days/week × 6 periods × 48 sections) |
+| Attendance Records | ~19,000 (90 school days + subject-wise) |
+| Exams / Schedules / Marks | 2 exams / 384 schedules / 1,600 marks |
+| Fee Heads / Structures / Invoices / Payments / Concessions | 8 / 60 / 400 / 305 / 37 |
+| Books / Copies / Issues / Reservations | 51 / 126 / 30 / 10 |
+| Vehicles / Routes / Student Transports | 4 / 6 / 30 |
+| Hostels / Rooms / Allocations / Visitor Logs | 2 / 24 / 20 / 8 |
+| Announcements / Notifications | 5 / 6 |
+
+Default login:
+- **Admin:** `admin@school.com` / `Admin@12345` (or the value of `SEED_ADMIN_PASSWORD`)
+- **Teachers:** `t.001@school.com` … `t.015@school.com` / same password
+- **Students:** `{admissionNo}@student.school.com` / same password
+- **Parents:** `{admissionNo}.{father|mother|guardian}@parent.school.com` / same password
 
 ### 4. Start the Backend
 
@@ -175,7 +201,7 @@ Use the seeded admin account:
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `PORT` | Server port | `5000` |
-| `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/school_management` |
+| `DATABASE_URL` | PostgreSQL connection string (Neon) | `postgresql://user:pass@host.neon.tech/dbname?sslmode=require` |
 | `JWT_SECRET` | JWT signing secret | (random string) |
 | `JWT_EXPIRE` | Access token expiry | `15m` |
 | `JWT_REFRESH_SECRET` | Refresh token secret | (random string) |
@@ -187,15 +213,58 @@ Use the seeded admin account:
 | `EMAIL_PORT` | SMTP port | `587` |
 | `EMAIL_USER` | Email address | `your-email@gmail.com` |
 | `EMAIL_PASS` | Email password / app password | `your-app-password` |
+| `EMAIL_FROM` | Sender display name and address | `"School" <your-email@gmail.com>` |
+| `EMAIL_SECURE` | Use TLS (true for port 465) | `false` |
+| `AFRICAS_TALKING_USERNAME` | Africa's Talking username | `sandbox` |
+| `AFRICAS_TALKING_API_KEY` | Africa's Talking API key | `your-api-key` |
+| `AFRICAS_TALKING_SENDER_ID` | Optional SMS sender ID | `SCHOOL` |
+| `SKIP_EMAIL_SEND` | Log emails instead of sending | `false` |
+| `SKIP_SMS_SEND` | Log SMS instead of sending | `false` |
+| `MPESA_ENVIRONMENT` | M-Pesa environment | `sandbox` |
+| `MPESA_CONSUMER_KEY` | M-Pesa Daraja consumer key | `your_key` |
+| `MPESA_CONSUMER_SECRET` | M-Pesa Daraja consumer secret | `your_secret` |
+| `MPESA_PASSKEY` | M-Pesa passkey | `your_passkey` |
+| `MPESA_SHORTCODE` | M-Pesa paybill/till number | `247247` |
+| `MPESA_ACCOUNT_REFERENCE` | M-Pesa paybill account number | `0743610160` |
+| `MPESA_CALLBACK_BASE_URL` | Public URL for M-Pesa callbacks | `https://your-domain.com` |
+| `STRIPE_SECRET_KEY` | Stripe secret key | `sk_test_...` |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key | `pk_test_...` |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook endpoint secret | `whsec_...` |
+| `SESSION_IDLE_TIMEOUT_MS` | User idle timeout in ms | `900000` |
 | `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:5173` |
 | `CLIENT_URL` | Frontend URL alias for CORS/reset links | `http://localhost:5173` |
 | `NODE_ENV` | Environment | `development` |
+
+> **M-Pesa note:** The defaults above are set for paybill **247247** with account number **0743610160**. For production, set `MPESA_ENVIRONMENT=production` and replace `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, and `MPESA_PASSKEY` with the credentials from your Safaricom Daraja portal app registered to that paybill.
 
 ### Client (`client/.env`)
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `VITE_API_URL` | Backend API base URL | `http://localhost:5000/api/v1` |
+| `VITE_API_URL` | Backend API base URL | `/api/v1` (uses Vite proxy in dev) or `http://localhost:5000/api/v1` |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key | `pk_test_...` |
+| `VITE_SESSION_IDLE_TIMEOUT_MS` | Idle timeout in ms | `900000` |
+
+---
+
+## Docker (Production-like Local Stack)
+
+```bash
+# Build and run the full stack
+JWT_SECRET=$(openssl rand -base64 64) JWT_REFRESH_SECRET=$(openssl rand -base64 64) docker-compose up --build -d
+```
+
+Services:
+- Redis on `6379`
+- API on `http://localhost:5000`
+- Web UI on `http://localhost`
+
+After the containers start, migrate and seed the database:
+
+```bash
+docker exec -it sms-server npm run migrate
+docker exec -it sms-server npm run seed:users
+```
 
 ---
 
@@ -251,12 +320,12 @@ Each module follows the same RESTful pattern with full CRUD operations.
 |-------|-----------|
 | Runtime | Node.js 20 LTS |
 | Framework | Express.js 4.x |
-| Database | MongoDB 7.x |
-| ODM | Mongoose 8.x |
+| Database | PostgreSQL 15+ (Neon) |
+| Driver | `@neondatabase/serverless` (raw SQL) |
 | Frontend | React 18 |
 | Build | Vite 5.x |
 | Styling | Tailwind CSS 3.x |
-| Icons | Lucide React |
+| Icons | Phosphor React |
 | Charts | Recharts |
 | HTTP Client | Axios |
 | Auth | JWT + bcryptjs |
@@ -267,12 +336,24 @@ Each module follows the same RESTful pattern with full CRUD operations.
 
 ## Available Scripts
 
+### Root (Monorepo)
+
+| Command | Description |
+|---------|-------------|
+| `npm install` | Install dependencies for both workspaces |
+| `npm run dev` | Start server and client concurrently |
+| `npm run seed` | Seed the database |
+| `npm run build` | Build the client for production |
+| `npm start` | Start the production server |
+
 ### Server
 | Command | Description |
 |---------|-------------|
 | `npm start` | Start production server |
 | `npm run dev` | Start development server (nodemon) |
-| `npm run seed` | Seed database with sample data |
+| `npm run migrate` | Run PostgreSQL schema migration |
+| `npm run seed:users` | Seed base user accounts |
+| `npm run seed` | Seed database with full sample data |
 
 ### Client
 | Command | Description |
