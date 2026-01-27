@@ -4,7 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
-const mongoSanitize = require('express-mongo-sanitize');
+
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 
@@ -14,32 +14,57 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Import database connection
-const connectDB = require('./config/db');
+const { connectDB } = require('./config/db');
 
-// Import route files
-const authRoutes = require('./routes/auth');
-const studentRoutes = require('./routes/students');
-const teacherRoutes = require('./routes/teachers');
-const classRoutes = require('./routes/classes');
-const subjectRoutes = require('./routes/subjects');
-const attendanceRoutes = require('./routes/attendance');
-const examRoutes = require('./routes/exams');
-const feeRoutes = require('./routes/fees');
-const libraryRoutes = require('./routes/library');
-const transportRoutes = require('./routes/transport');
-const hostelRoutes = require('./routes/hostel');
-const reportRoutes = require('./routes/reports');
-const notificationRoutes = require('./routes/notifications');
+// Import route aggregator
+const apiRoutes = require('./routes');
 
 // Import error handler
 const { errorHandler } = require('./middleware/error');
+const { startScheduler } = require('./jobs/scheduler');
 
 // Create Express app
 const app = express();
 
 app.set('trust proxy', 1);
 
-const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+// Build the explicit allow-list from CLIENT_URL / FRONTEND_URL (supports comma-separated values).
+const rawClientUrls =
+  process.env.CLIENT_URL ||
+  process.env.FRONTEND_URL ||
+  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173');
+
+if (process.env.NODE_ENV === 'production' && !rawClientUrls) {
+  console.warn(
+    '[server] No CLIENT_URL or FRONTEND_URL configured in production. CORS will allow only requests with no origin.'
+  );
+}
+
+const allowedClientUrls = new Set(
+  rawClientUrls
+    .split(',')
+    .map((u) => u.trim())
+    .filter(Boolean)
+);
+
+// In development, allow any localhost / 127.0.0.1 / [::1] origin regardless of
+// port so the SPA works whether it is served by Vite's dev server, preview,
+// or another local tool.
+const isLocalDevOrigin = (origin) => {
+  if (process.env.NODE_ENV === 'production') return false;
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+};
+
+const corsOrigin = (origin, callback) => {
+  // Allow requests with no origin (e.g. mobile apps, curl, server-side rendering)
+  if (!origin) return callback(null, true);
+
+  if (isLocalDevOrigin(origin)) return callback(null, true);
+
+  if (allowedClientUrls.has(origin)) return callback(null, true);
+
+  callback(new Error(`Origin ${origin} not allowed by CORS`));
+};
 
 const validateRuntimeConfig = () => {
   const weakSecrets = new Set([
@@ -82,12 +107,15 @@ const authLimiter = rateLimit({
 // Enable CORS
 app.use(
   cors({
-    origin: clientUrl,
+    origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   })
 );
+
+// Stripe webhook needs raw body
+app.use('/api/v1/payments/stripe/webhook', express.raw({ type: 'application/json' }));
 
 // Body parser
 app.use(express.json({ limit: '100kb' }));
@@ -95,9 +123,6 @@ app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // Cookie parser
 app.use(cookieParser());
-
-// Data sanitization against NoSQL injection
-app.use(mongoSanitize());
 
 // Compression
 app.use(compression());
@@ -128,19 +153,7 @@ app.get('/health', (req, res) => {
 app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/forgot-password', authLimiter);
 app.use('/api/v1/auth/reset-password', authLimiter);
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/students', studentRoutes);
-app.use('/api/v1/teachers', teacherRoutes);
-app.use('/api/v1/classes', classRoutes);
-app.use('/api/v1/subjects', subjectRoutes);
-app.use('/api/v1/attendance', attendanceRoutes);
-app.use('/api/v1/exams', examRoutes);
-app.use('/api/v1/fees', feeRoutes);
-app.use('/api/v1/library', libraryRoutes);
-app.use('/api/v1/transport', transportRoutes);
-app.use('/api/v1/hostel', hostelRoutes);
-app.use('/api/v1/reports', reportRoutes);
-app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1', apiRoutes);
 
 // ── Error Handling ─────────────────────────────────────────
 
@@ -164,6 +177,10 @@ const startServer = async () => {
   try {
     validateRuntimeConfig();
     await connectDB();
+
+    if (process.env.NODE_ENV !== 'test') {
+      startScheduler();
+    }
 
     const server = app.listen(PORT, () => {
       console.log(`
