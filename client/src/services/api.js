@@ -2,11 +2,22 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1',
+  // Default to the Vite dev-server proxy in development to avoid CORS issues.
+  // Set VITE_API_URL explicitly (e.g. http://localhost:5000/api/v1) if you need direct backend access.
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
+  transformRequest: [
+    (data, headers) => {
+      if (data instanceof FormData) {
+        delete headers['Content-Type'];
+        return data;
+      }
+      return JSON.stringify(data);
+    },
+  ],
   timeout: 30000,
 });
 
@@ -38,7 +49,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (!error.response) {
-      toast.error('Network error. Please check your connection.');
+      // No response means the request never reached the server (CORS, DNS, server down, etc.)
+      const isCORS = error.message?.toLowerCase().includes('cors') || error.message?.toLowerCase().includes('network error');
+      toast.error(
+        isCORS
+          ? 'Connection error. If running locally, make sure the API server is running and CORS is configured.'
+          : 'Network error. Please check your connection.'
+      );
       return Promise.reject(error);
     }
 
