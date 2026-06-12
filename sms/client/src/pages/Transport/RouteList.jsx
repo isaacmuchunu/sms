@@ -3,6 +3,7 @@ import { Plus, Bus, MapPin, Users, IndianRupee, ChevronDown, ChevronUp } from 'l
 import Modal from '../../components/Modal';
 import InputField from '../../components/Form/InputField';
 import api from '../../services/api';
+import useFetch from '../../hooks/useFetch';
 
 const mockRoutes = [
   {
@@ -33,6 +34,7 @@ const mockRoutes = [
 ];
 
 const RouteList = () => {
+  const { data: routesFromApi = [], refetch } = useFetch('/transport/routes');
   const [expandedRoute, setExpandedRoute] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', code: '', vehicleRegNo: '', driver: '', fee: '' });
@@ -48,6 +50,7 @@ const RouteList = () => {
     try {
       await api.post('/transport/routes', form);
       setShowForm(false);
+      refetch();
     } catch {
       alert('Failed to create route');
     } finally {
@@ -55,9 +58,22 @@ const RouteList = () => {
     }
   };
 
-  const totalStudents = mockRoutes.reduce((s, r) => s + r.studentCount, 0);
-  const totalVehicles = mockRoutes.length;
-  const avgFee = Math.round(mockRoutes.reduce((s, r) => s + r.fee, 0) / mockRoutes.length);
+  const routes = Array.isArray(routesFromApi) && routesFromApi.length > 0
+    ? routesFromApi.map((route) => ({
+        ...route,
+        name: route.routeName,
+        code: route.routeCode,
+        vehicleRegNo: route.vehicle?.registrationNumber || '-',
+        driver: route.vehicle?.driverName || '-',
+        stopsCount: route.stops?.length || 0,
+        studentCount: route.students?.length || 0,
+        fee: route.fare || 0,
+        stops: route.stops?.map((stop) => stop.name) || [],
+      }))
+    : mockRoutes;
+  const totalStudents = routes.reduce((s, r) => s + r.studentCount, 0);
+  const totalVehicles = routes.length;
+  const avgFee = routes.length > 0 ? Math.round(routes.reduce((s, r) => s + r.fee, 0) / routes.length) : 0;
 
   return (
     <div className="space-y-6">
@@ -78,7 +94,7 @@ const RouteList = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
           <div className="p-3 bg-indigo-50 rounded-lg"><Bus size={20} className="text-indigo-600" /></div>
-          <div><p className="text-xs text-gray-500">Routes</p><p className="text-xl font-bold text-gray-900">{mockRoutes.length}</p></div>
+          <div><p className="text-xs text-gray-500">Routes</p><p className="text-xl font-bold text-gray-900">{routes.length}</p></div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
           <div className="p-3 bg-emerald-50 rounded-lg"><Users size={20} className="text-emerald-600" /></div>
@@ -96,7 +112,7 @@ const RouteList = () => {
 
       {/* Route Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {mockRoutes.map((route) => {
+        {routes.map((route) => {
           const isExpanded = expandedRoute === route._id;
           return (
             <div key={route._id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">

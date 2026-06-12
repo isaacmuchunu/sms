@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BedDouble, Users, Wrench, ChevronRight, LogIn } from 'lucide-react';
 import Modal from '../../components/Modal';
+import useFetch from '../../hooks/useFetch';
 
 const ROOM_TYPES = {
   single: { label: 'Single', capacity: 1 },
@@ -36,16 +37,28 @@ const statusConfig = {
 };
 
 const RoomList = () => {
+  const { data: roomsFromApi = [] } = useFetch('/hostel/rooms');
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [showVisitorLog, setShowVisitorLog] = useState(false);
+  const rooms = Array.isArray(roomsFromApi) && roomsFromApi.length > 0
+    ? roomsFromApi.map((room) => ({
+        ...room,
+        roomNo: room.roomNumber,
+        occupants: room.occupants?.length || 0,
+        occupantsList: room.occupants?.map((student) =>
+          [student.firstName, student.lastName].filter(Boolean).join(' ')
+        ) || [],
+        status: room.status === 'partially_occupied' || room.status === 'occupied' ? 'available' : room.status,
+      }))
+    : mockRooms;
 
   const stats = {
-    total: mockRooms.length,
-    available: mockRooms.filter((r) => r.status === 'available').length,
-    full: mockRooms.filter((r) => r.status === 'full').length,
-    maintenance: mockRooms.filter((r) => r.status === 'maintenance').length,
-    totalOccupants: mockRooms.reduce((s, r) => s + r.occupants, 0),
-    totalCapacity: mockRooms.reduce((s, r) => s + r.capacity, 0),
+    total: rooms.length,
+    available: rooms.filter((r) => r.status === 'available').length,
+    full: rooms.filter((r) => r.status === 'full').length,
+    maintenance: rooms.filter((r) => r.status === 'maintenance').length,
+    totalOccupants: rooms.reduce((s, r) => s + r.occupants, 0),
+    totalCapacity: rooms.reduce((s, r) => s + r.capacity, 0),
   };
 
   return (
@@ -84,7 +97,7 @@ const RoomList = () => {
 
       {/* Room Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {mockRooms.map((room) => {
+        {rooms.map((room) => {
           const config = statusConfig[room.status];
           const occupancyPct = Math.round((room.occupants / room.capacity) * 100);
 

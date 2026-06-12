@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Save, Plus, Trash2, Pencil } from 'lucide-react';
 import InputField from '../../components/Form/InputField';
 import SelectField from '../../components/Form/SelectField';
 import api from '../../services/api';
+import useFetch from '../../hooks/useFetch';
 
 const CLASS_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1),
@@ -20,28 +21,48 @@ const mockFeeHeads = [
 ];
 
 const FeeStructure = () => {
-  const [selectedClass, setSelectedClass] = useState('1');
-  const [feeHeads, setFeeHeads] = useState(mockFeeHeads);
+  const { data: classes = [] } = useFetch('/classes');
+  const { data: feeHeadsFromApi = [] } = useFetch('/fees/heads');
+  const [selectedClass, setSelectedClass] = useState('');
   const [classFees, setClassFees] = useState({});
   const [saving, setSaving] = useState(false);
+  const academicYear = '2024-2025';
+
+  const classOptions = useMemo(() => {
+    if (!Array.isArray(classes) || classes.length === 0) {
+      return CLASS_OPTIONS;
+    }
+
+    return classes.map((cls) => ({
+      value: cls._id,
+      label: `${cls.name} - Section ${cls.section}`,
+    }));
+  }, [classes]);
+
+  const feeHeads = Array.isArray(feeHeadsFromApi) && feeHeadsFromApi.length > 0
+    ? feeHeadsFromApi
+    : mockFeeHeads;
+
+  const effectiveSelectedClass = selectedClass || classOptions[0]?.value || '';
 
   const handleAmountChange = (feeHeadId, amount) => {
     setClassFees((prev) => ({
       ...prev,
-      [`${selectedClass}-${feeHeadId}`]: amount,
+      [`${effectiveSelectedClass}-${feeHeadId}`]: amount,
     }));
   };
 
   const getAmount = (feeHeadId) => {
-    return classFees[`${selectedClass}-${feeHeadId}`] || '';
+    return classFees[`${effectiveSelectedClass}-${feeHeadId}`] || '';
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await api.post('/fees/structure', {
-        class: selectedClass,
-        fees: feeHeads.map((fh) => ({
+        classId: effectiveSelectedClass,
+        academicYear,
+        feeHeads: feeHeads.map((fh) => ({
           feeHeadId: fh._id,
           amount: Number(getAmount(fh._id)) || 0,
         })),
@@ -106,9 +127,9 @@ const FeeStructure = () => {
           <h3 className="text-lg font-semibold text-gray-800">Class-wise Fee Structure</h3>
           <SelectField
             name="class"
-            value={selectedClass}
+            value={effectiveSelectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            options={CLASS_OPTIONS}
+            options={classOptions}
             className="w-40"
           />
         </div>

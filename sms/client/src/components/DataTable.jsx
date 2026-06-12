@@ -62,6 +62,8 @@ const DataTable = ({
   const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / pagination.limit));
   const startItem = (pagination.page - 1) * pagination.limit + 1;
   const endItem = Math.min(pagination.page * pagination.limit, pagination.total || 0);
+  const hasActions =
+    typeof actions === 'function' || actions.view || actions.edit || actions.delete;
 
   // Generate page numbers to display
   const getPageNumbers = () => {
@@ -141,7 +143,7 @@ const DataTable = ({
                   </div>
                 </th>
               ))}
-              {(actions.view || actions.edit || actions.delete) && (
+              {hasActions && (
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">
                   Actions
                 </th>
@@ -159,7 +161,7 @@ const DataTable = ({
                       <div className="skeleton-shimmer h-4 w-3/4 rounded" />
                     </td>
                   ))}
-                  {(actions.view || actions.edit || actions.delete) && (
+                  {hasActions && (
                     <td className="px-4 py-3">
                       <div className="skeleton-shimmer ml-auto h-4 w-16 rounded" />
                     </td>
@@ -172,7 +174,7 @@ const DataTable = ({
                 <td
                   colSpan={
                     columns.length +
-                    (actions.view || actions.edit || actions.delete ? 1 : 0)
+                    (hasActions ? 1 : 0)
                   }
                   className="px-4 py-12 text-center"
                 >
@@ -191,7 +193,7 @@ const DataTable = ({
               // Data Rows
               data.map((row, rowIdx) => (
                 <tr
-                  key={row.id || rowIdx}
+                  key={row._id || row.id || rowIdx}
                   className="table-striped transition-colors hover:bg-gray-50/60"
                 >
                   {columns.map((column) => (
@@ -208,9 +210,13 @@ const DataTable = ({
                         : row[column.key] ?? '—'}
                     </td>
                   ))}
-                  {(actions.view || actions.edit || actions.delete) && (
+                  {hasActions && (
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {typeof actions === 'function' ? (
+                          actions(row)
+                        ) : (
+                          <>
                         {actions.view && (
                           <button
                             onClick={() => actions.view(row)}
@@ -237,6 +243,8 @@ const DataTable = ({
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
+                        )}
+                          </>
                         )}
                       </div>
                     </td>

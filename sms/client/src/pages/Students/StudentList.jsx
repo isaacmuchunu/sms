@@ -8,14 +8,15 @@ import api from '../../services/api';
 
 const statusBadge = (status) => {
   const classes = {
-    Active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    Inactive: 'bg-gray-100 text-gray-600 border-gray-200',
-    Suspended: 'bg-red-50 text-red-700 border-red-200',
-    Alumni: 'bg-blue-50 text-blue-700 border-blue-200',
+    active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    inactive: 'bg-gray-100 text-gray-600 border-gray-200',
+    transferred: 'bg-red-50 text-red-700 border-red-200',
+    passed_out: 'bg-blue-50 text-blue-700 border-blue-200',
   };
+  const labels = { active: 'Active', inactive: 'Inactive', transferred: 'Transferred', passed_out: 'Passed Out' };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${classes[status] || classes.Inactive}`}>
-      {status || 'Inactive'}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${classes[status] || classes.inactive}`}>
+      {labels[status] || 'Inactive'}
     </span>
   );
 };
@@ -28,9 +29,17 @@ const StudentList = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const getStudentName = (student) =>
+    student.fullName || [student.firstName, student.lastName].filter(Boolean).join(' ');
+
+  const getClassLabel = (student) =>
+    typeof student.currentClass === 'object' && student.currentClass
+      ? `${student.currentClass.name} - ${student.currentClass.section}`
+      : student.currentClass || '';
+
   const classes = useMemo(() => {
     if (!students) return [];
-    const cls = [...new Set(students.map((s) => s.currentClass).filter(Boolean))];
+    const cls = [...new Set(students.map((s) => getClassLabel(s)).filter(Boolean))];
     return cls.sort();
   }, [students]);
 
@@ -45,9 +54,9 @@ const StudentList = () => {
     return students.filter((s) => {
       const matchesSearch =
         !searchTerm ||
-        s.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        getStudentName(s).toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.admissionNo?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesClass = !filterClass || s.currentClass === filterClass;
+      const matchesClass = !filterClass || getClassLabel(s) === filterClass;
       const matchesSection = !filterSection || s.currentSection === filterSection;
       return matchesSearch && matchesClass && matchesSection;
     });
@@ -69,8 +78,8 @@ const StudentList = () => {
 
   const columns = [
     { key: 'admissionNo', label: 'Admission No', sortable: true },
-    { key: 'fullName', label: 'Name', sortable: true },
-    { key: 'currentClass', label: 'Class', sortable: true },
+    { key: 'fullName', label: 'Name', sortable: true, render: (_, row) => getStudentName(row) },
+    { key: 'currentClass', label: 'Class', sortable: true, render: (_, row) => getClassLabel(row) },
     { key: 'currentSection', label: 'Section', sortable: true },
     { key: 'gender', label: 'Gender', sortable: true },
     {
@@ -146,7 +155,7 @@ const StudentList = () => {
               >
                 <option value="">All Classes</option>
                 {classes.map((c) => (
-                  <option key={c} value={c}>Class {c}</option>
+                  <option key={c} value={c}>{c}</option>
                 ))}
               </select>
             </div>

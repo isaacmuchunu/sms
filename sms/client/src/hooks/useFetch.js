@@ -27,7 +27,16 @@ const useFetch = (url, options = {}) => {
           params,
           signal: abortControllerRef.current.signal,
         });
-        setData(response.data.data || response.data);
+        const payload = response.data.data || response.data;
+        const keys = payload && typeof payload === 'object' && !Array.isArray(payload)
+          ? Object.keys(payload)
+          : [];
+        const listKey = keys.find((key) => Array.isArray(payload[key]));
+        const normalizedPayload =
+          listKey && keys.every((key) => key === listKey || key === 'meta')
+            ? payload[listKey]
+            : payload;
+        setData(normalizedPayload);
         return response.data;
       } catch (err) {
         if (err.name === 'AbortError' || err.name === 'CanceledError') {

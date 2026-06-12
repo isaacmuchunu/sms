@@ -41,7 +41,7 @@ const TABS = [
 
 const StudentDetail = () => {
   const { id } = useParams();
-  const { data: student, loading, error } = useFetch(`/students/${id}`);
+  const { data: studentData, loading, error } = useFetch(`/students/${id}`);
   const [activeTab, setActiveTab] = useState('overview');
 
   if (loading) {
@@ -63,7 +63,12 @@ const StudentDetail = () => {
     );
   }
 
-  const s = student || {};
+  const detail = studentData || {};
+  const s = detail.student || detail;
+  const classLabel =
+    typeof s.currentClass === 'object' && s.currentClass
+      ? `${s.currentClass.name} - Section ${s.currentClass.section}`
+      : `${s.currentClass || '-'} - Section ${s.currentSection || '-'}`;
 
   const renderOverview = () => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -88,7 +93,7 @@ const StudentDetail = () => {
           <InfoRow icon={FileText} label="Admission No" value={s.admissionNo || '-'} />
           <InfoRow icon={FileText} label="Roll No" value={s.rollNo || '-'} />
           <InfoRow icon={Calendar} label="Academic Year" value={s.academicYear || '-'} />
-          <InfoRow icon={GraduationCap} label="Current Class" value={`${s.currentClass || '-'} - Section ${s.currentSection || '-'}`} />
+          <InfoRow icon={GraduationCap} label="Current Class" value={classLabel} />
           <InfoRow icon={GraduationCap} label="Previous School" value={s.previousSchool || '-'} />
           <InfoRow icon={GraduationCap} label="Previous Class %" value={s.previousClassPercentage ? `${s.previousClassPercentage}%` : '-'} />
         </div>
@@ -261,7 +266,7 @@ const StudentDetail = () => {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{s.fullName || `${s.firstName || ''} ${s.lastName || ''}` || 'Student'}</h1>
               <p className="text-sm text-gray-500">
-                Admission No: {s.admissionNo || '-'} | Class {s.currentClass || '-'} - Section {s.currentSection || '-'}
+                Admission No: {s.admissionNo || '-'} | Class {classLabel}
               </p>
             </div>
           </div>

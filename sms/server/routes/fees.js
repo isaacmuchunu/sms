@@ -10,26 +10,27 @@ router.use(authenticate);
 router
   .route('/heads')
   .get(feeController.getFeeHeads)
-  .post(authorize('admin'), feeController.createFeeHead);
+  .post(authorize('admin', 'accountant'), feeController.createFeeHead);
 
-router.put('/heads/:id', authorize('admin'), feeController.updateFeeHead);
+router.put('/heads/:id', authorize('admin', 'accountant'), feeController.updateFeeHead);
 
 // ── Fee Structure ──────────────────────────────────────────
 router
   .route('/structure')
   .get(feeController.getFeeStructure)
-  .post(authorize('admin'), feeController.setFeeStructure);
+  .post(authorize('admin', 'accountant'), feeController.setFeeStructure);
 
 // ── Payments ───────────────────────────────────────────────
-router.post('/payments/record', feeController.recordPayment);
-router.get('/payments', feeController.getPayments);
+router.post('/payments/record', authorize('admin', 'accountant'), feeController.recordPayment);
+router.post('/payments', authorize('admin', 'accountant'), feeController.recordPayment);
+router.get('/payments', authorize('admin', 'accountant'), feeController.getPayments);
 
 // ── Student Ledger ─────────────────────────────────────────
-router.get('/student/:studentId/ledger', feeController.getStudentLedger);
+router.get('/student/:studentId/ledger', authorize('admin', 'accountant'), feeController.getStudentLedger);
 
 // ── Reports ────────────────────────────────────────────────
-router.get('/outstanding', feeController.getOutstanding);
-router.get('/daily-collection', feeController.getDailyCollection);
-router.get('/monthly-collection', feeController.getMonthlyCollection);
+router.get('/outstanding', authorize('admin', 'accountant'), feeController.getOutstanding);
+router.get('/daily-collection', authorize('admin', 'accountant'), feeController.getDailyCollection);
+router.get('/monthly-collection', authorize('admin', 'accountant'), feeController.getMonthlyCollection);
 
 module.exports = router;

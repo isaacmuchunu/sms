@@ -17,7 +17,16 @@ const feeHeadSchema = new mongoose.Schema(
     frequency: {
       type: String,
       enum: ['monthly', 'quarterly', 'half_yearly', 'yearly', 'one_time'],
-      required: [true, 'Frequency is required'],
+      default: 'one_time',
+    },
+    category: {
+      type: String,
+      enum: ['tuition', 'transport', 'hostel', 'library', 'exam', 'activity', 'other'],
+      default: 'tuition',
+    },
+    isRefundable: {
+      type: Boolean,
+      default: false,
     },
     status: {
       type: String,
@@ -44,26 +53,37 @@ const feeStructureSchema = new mongoose.Schema(
       ref: 'Class',
       required: [true, 'Class reference is required'],
     },
-    feeHead: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'FeeHead',
-      required: [true, 'Fee head reference is required'],
-    },
-    amount: {
-      type: Number,
-      required: [true, 'Amount is required'],
-      min: [0, 'Amount cannot be negative'],
-    },
     academicYear: {
       type: String,
       required: [true, 'Academic year is required'],
       trim: true,
     },
-    dueDay: {
+    feeHeads: [
+      {
+        feeHead: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'FeeHead',
+          required: true,
+        },
+        amount: {
+          type: Number,
+          required: true,
+          min: [0, 'Amount cannot be negative'],
+        },
+        frequency: {
+          type: String,
+          enum: ['monthly', 'quarterly', 'half_yearly', 'yearly', 'one_time'],
+          default: 'yearly',
+        },
+        dueDate: {
+          type: Date,
+        },
+      },
+    ],
+    totalAmount: {
       type: Number,
-      default: 10,
-      min: [1, 'Due day must be between 1 and 31'],
-      max: [31, 'Due day must be between 1 and 31'],
+      default: 0,
+      min: [0, 'Total amount cannot be negative'],
     },
   },
   {
@@ -71,11 +91,15 @@ const feeStructureSchema = new mongoose.Schema(
   }
 );
 
-// Compound unique index: class + feeHead + academicYear
-feeStructureSchema.index({ class: 1, feeHead: 1, academicYear: 1 }, { unique: true });
+// Compound unique index: class + academicYear
+feeStructureSchema.index({ class: 1, academicYear: 1 }, { unique: true });
 feeStructureSchema.index({ class: 1 });
 feeStructureSchema.index({ academicYear: 1 });
-feeStructureSchema.index({ feeHead: 1 });
+
+feeStructureSchema.pre('validate', function (next) {
+  this.totalAmount = (this.feeHeads || []).reduce((sum, item) => sum + (item.amount || 0), 0);
+  next();
+});
 
 const FeeStructure = mongoose.model('FeeStructure', feeStructureSchema);
 
@@ -90,12 +114,25 @@ const feePaymentSchema = new mongoose.Schema(
     feeStructure: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'FeeStructure',
-      required: [true, 'Fee structure reference is required'],
+      default: null,
+    },
+    feeHead: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'FeeHead',
+      default: null,
+    },
+    amount: {
+      type: Number,
+      min: [0, 'Amount cannot be negative'],
     },
     amountPaid: {
       type: Number,
-      required: [true, 'Amount paid is required'],
+      default: undefined,
       min: [0, 'Amount paid cannot be negative'],
+    },
+    netAmount: {
+      type: Number,
+      min: [0, 'Net amount cannot be negative'],
     },
     paymentMode: {
       type: String,
@@ -116,9 +153,17 @@ const feePaymentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    paymentDate: {
+      type: Date,
+      default: Date.now,
+    },
+    academicYear: {
+      type: String,
+      trim: true,
+    },
     dueDate: {
       type: Date,
-      required: [true, 'Due date is required'],
+      default: Date.now,
     },
     receiptNo: {
       type: String,
@@ -141,11 +186,27 @@ const feePaymentSchema = new mongoose.Schema(
       trim: true,
       maxlength: [500, 'Remarks cannot exceed 500 characters'],
     },
+    collectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+feePaymentSchema.pre('validate', function (next) {
+  const gross = this.amount ?? this.amountPaid ?? 0;
+  this.amount = gross;
+  this.amountPaid = this.amountPaid ?? gross;
+  this.netAmount = this.netAmount ?? Math.max(gross + (this.fine || 0) - (this.discount || 0), 0);
+  if (this.status === 'paid' && !this.paidDate) {
+    this.paidDate = this.paymentDate || new Date();
+  }
+  next();
+});
 
 // Indexes
 feePaymentSchema.index({ receiptNo: 1 }, { unique: true, sparse: true });
@@ -153,6 +214,8 @@ feePaymentSchema.index({ student: 1 });
 feePaymentSchema.index({ status: 1 });
 feePaymentSchema.index({ dueDate: 1 });
 feePaymentSchema.index({ paidDate: 1 });
+feePaymentSchema.index({ paymentDate: -1 });
+feePaymentSchema.index({ academicYear: 1 });
 
 // Pre-save hook: auto-generate receipt number
 feePaymentSchema.pre('save', async function (next) {

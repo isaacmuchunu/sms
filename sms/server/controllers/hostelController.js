@@ -54,6 +54,7 @@ exports.getRooms = catchAsync(async (req, res) => {
 exports.createRoom = catchAsync(async (req, res) => {
   const {
     roomNumber,
+    roomNo,
     block,
     floor,
     type,
@@ -64,13 +65,14 @@ exports.createRoom = catchAsync(async (req, res) => {
   } = req.body;
 
   // Check if room already exists in block
-  const existing = await Room.findOne({ roomNumber, block });
+  const normalizedRoomNumber = roomNumber || roomNo;
+  const existing = await Room.findOne({ roomNumber: normalizedRoomNumber, block });
   if (existing) {
-    throw new ApiError(`Room ${roomNumber} already exists in block ${block}`, 400);
+    throw new ApiError(`Room ${normalizedRoomNumber} already exists in block ${block}`, 400);
   }
 
   const room = await Room.create({
-    roomNumber,
+    roomNumber: normalizedRoomNumber,
     block,
     floor,
     type: type || 'standard',
@@ -137,7 +139,7 @@ exports.allocateRoom = catchAsync(async (req, res) => {
   }
 
   // Check if student already allocated
-  if (room.occupants.includes(studentId)) {
+  if (room.occupants.some((occupant) => occupant.toString() === studentId)) {
     throw new ApiError('Student is already allocated to this room', 400);
   }
 
@@ -145,7 +147,7 @@ exports.allocateRoom = catchAsync(async (req, res) => {
 
   // Update room status
   if (room.occupants.length >= room.capacity) {
-    room.status = 'occupied';
+    room.status = 'full';
   } else if (room.occupants.length > 0) {
     room.status = 'partially_occupied';
   }

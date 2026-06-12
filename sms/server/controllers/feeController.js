@@ -107,7 +107,10 @@ exports.getFeeStructure = catchAsync(async (req, res) => {
 // @route   POST /api/v1/fees/structure
 // @access  Admin
 exports.setFeeStructure = catchAsync(async (req, res) => {
-  const { classId, academicYear, feeHeads, totalAmount } = req.body;
+  const classId = req.body.classId || req.body.class;
+  const academicYear = req.body.academicYear || new Date().getFullYear().toString();
+  const feeHeads = req.body.feeHeads || req.body.fees;
+  const { totalAmount } = req.body;
 
   if (!classId || !academicYear || !Array.isArray(feeHeads)) {
     throw new ApiError('Class, academic year, and fee heads array are required', 400);
@@ -122,7 +125,7 @@ exports.setFeeStructure = catchAsync(async (req, res) => {
     feeHeads: feeHeads.map((fh) => ({
       feeHead: fh.feeHeadId,
       amount: fh.amount,
-      frequency: fh.frequency || 'annual',
+      frequency: fh.frequency || 'yearly',
       dueDate: fh.dueDate,
     })),
     totalAmount: totalAmount || feeHeads.reduce((sum, fh) => sum + (fh.amount || 0), 0),
@@ -193,7 +196,9 @@ exports.recordPayment = catchAsync(async (req, res) => {
     fine = 0,
   } = req.body;
 
-  if (!student || !amount || !paymentMode) {
+  const normalizedPaymentMode = String(paymentMode || '').toLowerCase().replace(/\s+/g, '_');
+
+  if (!student || !amount || !normalizedPaymentMode) {
     throw new ApiError('Student, amount, and payment mode are required', 400);
   }
 
@@ -206,7 +211,7 @@ exports.recordPayment = catchAsync(async (req, res) => {
     discount,
     fine,
     netAmount: amount + fine - discount,
-    paymentMode,
+    paymentMode: normalizedPaymentMode,
     paymentDate: paymentDate || new Date(),
     academicYear,
     receiptNo,

@@ -1,10 +1,30 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiResponse = require('../utils/ApiResponse');
 const ApiError = require('../utils/ApiError');
+
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+const getRefreshCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
+
+const setRefreshCookie = (res, refreshToken) => {
+  res.cookie('refreshToken', refreshToken, getRefreshCookieOptions());
+};
+
+const clearRefreshCookie = (res) => {
+  res.cookie('refreshToken', '', {
+    ...getRefreshCookieOptions(),
+    expires: new Date(0),
+    maxAge: 0,
+  });
+};
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -20,11 +40,23 @@ const generateRefreshToken = (userId) => {
   });
 };
 
+const assertStrongPassword = (password, fieldName = 'Password') => {
+  if (!password || password.length < 8) {
+    throw new ApiError(`${fieldName} must be at least 8 characters`, 400);
+  }
+
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    throw new ApiError(`${fieldName} must include at least one letter and one number`, 400);
+  }
+};
+
 // @desc    Register new user
 // @route   POST /api/v1/auth/register
 // @access  Admin only
 exports.register = catchAsync(async (req, res) => {
   const { name, email, password, role, phone, address } = req.body;
+
+  assertStrongPassword(password);
 
   // Check if user already exists
   const existingUser = await User.findOne({ email });
@@ -32,15 +64,11 @@ exports.register = catchAsync(async (req, res) => {
     throw new ApiError('User with this email already exists', 400);
   }
 
-  // Hash password
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
-
   // Create user
   const user = await User.create({
     name,
     email,
-    password: hashedPassword,
+    password,
     role: role || 'student',
     phone,
     address,
@@ -80,7 +108,7 @@ exports.login = catchAsync(async (req, res) => {
   }
 
   // Compare password
-  const isMatch = await bcrypt.compare(password, user.password);
+  const isMatch = await user.comparePassword(password);
   if (!isMatch) {
     throw new ApiError('Invalid credentials', 401);
   }
@@ -94,19 +122,12 @@ exports.login = catchAsync(async (req, res) => {
   const token = generateToken(user._id);
   const refreshToken = generateRefreshToken(user._id);
 
-  // Save refresh token to user
-  user.refreshToken = refreshToken;
+  // Save only a hash of the refresh token so DB disclosure does not expose sessions
+  user.refreshToken = hashToken(refreshToken);
+  user.lastLogin = new Date();
   await user.save({ validateBeforeSave: false });
 
-  // Set refresh token as httpOnly cookie
-  const cookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  };
-
-  res.cookie('refreshToken', refreshToken, cookieOptions);
+  setRefreshCookie(res, refreshToken);
 
   // Return user without password
   const userResponse = {
@@ -118,30 +139,40 @@ exports.login = catchAsync(async (req, res) => {
     address: user.address,
   };
 
-  return ApiResponse.success(res, { user: userResponse, token, refreshToken }, 'Login successful');
+  return ApiResponse.success(res, { user: userResponse, token }, 'Login successful');
 });
 
 // @desc    Refresh access token
 // @route   POST /api/v1/auth/refresh-token
 // @access  Public (with refresh cookie)
 exports.refreshToken = catchAsync(async (req, res) => {
-  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+  const refreshToken = req.cookies.refreshToken || req.body?.refreshToken;
 
   if (!refreshToken) {
     throw new ApiError('No refresh token provided', 401);
   }
 
-  // Verify refresh token
   const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+  const refreshTokenHash = hashToken(refreshToken);
 
   // Find user
-  const user = await User.findById(decoded.id);
-  if (!user || user.refreshToken !== refreshToken) {
+  const user = await User.findById(decoded.id).select('+refreshToken');
+  if (!user || user.refreshToken !== refreshTokenHash) {
     throw new ApiError('Invalid refresh token', 401);
   }
 
-  // Generate new access token
+  if (user.status === 'inactive') {
+    throw new ApiError('Your account has been deactivated', 403);
+  }
+
+  // Rotate refresh token on every refresh.
   const newAccessToken = generateToken(user._id);
+  const newRefreshToken = generateRefreshToken(user._id);
+
+  user.refreshToken = hashToken(newRefreshToken);
+  await user.save({ validateBeforeSave: false });
+
+  setRefreshCookie(res, newRefreshToken);
 
   return ApiResponse.success(res, { token: newAccessToken }, 'Token refreshed successfully');
 });
@@ -150,18 +181,22 @@ exports.refreshToken = catchAsync(async (req, res) => {
 // @route   POST /api/v1/auth/logout
 // @access  Private
 exports.logout = catchAsync(async (req, res) => {
-  // Clear refresh token from cookie
-  res.cookie('refreshToken', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    expires: new Date(0),
-  });
+  clearRefreshCookie(res);
 
-  // Clear refresh token from user if authenticated
+  // Clear refresh token from user if authenticated.
   if (req.user) {
     req.user.refreshToken = undefined;
     await req.user.save({ validateBeforeSave: false });
+  } else {
+    const refreshToken = req.cookies.refreshToken || req.body?.refreshToken;
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        await User.findByIdAndUpdate(decoded.id, { $unset: { refreshToken: 1 } });
+      } catch {
+        // Logout should stay idempotent even when the token is already invalid.
+      }
+    }
   }
 
   return ApiResponse.success(res, null, 'Logged out successfully');
@@ -179,21 +214,21 @@ exports.forgotPassword = catchAsync(async (req, res) => {
 
   const user = await User.findOne({ email });
   if (!user) {
-    throw new ApiError('No user found with this email', 404);
+    return ApiResponse.success(res, null, 'If the email exists, a password reset link has been sent');
   }
 
   // Generate reset token
   const resetToken = crypto.randomBytes(32).toString('hex');
 
   // Hash token and save to user
-  const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
-  user.resetPasswordToken = resetTokenHash;
+  user.resetPasswordToken = hashToken(resetToken);
   user.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 minutes
 
   await user.save({ validateBeforeSave: false });
 
   // Create reset URL
-  const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+  const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+  const resetUrl = `${clientUrl}/reset-password/${resetToken}`;
 
   // Send email (placeholder - integrate with email service)
   try {
@@ -203,7 +238,8 @@ exports.forgotPassword = catchAsync(async (req, res) => {
     //   html: `Click <a href="${resetUrl}">here</a> to reset your password.`,
     // });
 
-    return ApiResponse.success(res, { resetUrl }, 'Password reset email sent');
+    const data = process.env.NODE_ENV === 'production' ? null : { resetUrl };
+    return ApiResponse.success(res, data, 'If the email exists, a password reset link has been sent');
   } catch (error) {
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
@@ -220,12 +256,10 @@ exports.resetPassword = catchAsync(async (req, res) => {
   const { token } = req.params;
   const { password } = req.body;
 
-  if (!password || password.length < 6) {
-    throw new ApiError('Please provide a password with at least 6 characters', 400);
-  }
+  assertStrongPassword(password);
 
   // Hash token from params
-  const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const resetTokenHash = hashToken(token);
 
   // Find user by reset token
   const user = await User.findOne({
@@ -237,9 +271,8 @@ exports.resetPassword = catchAsync(async (req, res) => {
     throw new ApiError('Invalid or expired reset token', 400);
   }
 
-  // Hash new password
-  const salt = await bcrypt.genSalt(10);
-  user.password = await bcrypt.hash(password, salt);
+  user.password = password;
+  user.refreshToken = undefined;
   user.resetPasswordToken = undefined;
   user.resetPasswordExpire = undefined;
 
@@ -282,22 +315,19 @@ exports.updatePassword = catchAsync(async (req, res) => {
     throw new ApiError('Please provide current password and new password', 400);
   }
 
-  if (newPassword.length < 6) {
-    throw new ApiError('New password must be at least 6 characters', 400);
-  }
+  assertStrongPassword(newPassword, 'New password');
 
   // Get user with password
   const user = await User.findById(req.user.id).select('+password');
 
   // Verify current password
-  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  const isMatch = await user.comparePassword(currentPassword);
   if (!isMatch) {
     throw new ApiError('Current password is incorrect', 401);
   }
 
-  // Hash new password
-  const salt = await bcrypt.genSalt(10);
-  user.password = await bcrypt.hash(newPassword, salt);
+  user.password = newPassword;
+  user.refreshToken = undefined;
   await user.save();
 
   return ApiResponse.success(res, null, 'Password updated successfully');

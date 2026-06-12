@@ -48,6 +48,51 @@ const examSchema = new mongoose.Schema(
       ref: 'User',
       required: [true, 'Created by is required'],
     },
+    subjects: [
+      {
+        subject: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Subject',
+          required: true,
+        },
+        examDate: {
+          type: Date,
+        },
+        startTime: {
+          type: String,
+          match: [/^([01]\d|2[0-3]):([0-5]\d)$/, 'Please use HH:MM format'],
+        },
+        endTime: {
+          type: String,
+          match: [/^([01]\d|2[0-3]):([0-5]\d)$/, 'Please use HH:MM format'],
+        },
+        maxMarks: {
+          type: Number,
+          default: 100,
+          min: [1, 'Max marks must be at least 1'],
+        },
+      },
+    ],
+    maxMarks: {
+      type: Number,
+      default: 100,
+      min: [1, 'Max marks must be at least 1'],
+    },
+    passPercentage: {
+      type: Number,
+      default: 33,
+      min: [0, 'Pass percentage cannot be negative'],
+      max: [100, 'Pass percentage cannot exceed 100'],
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Description cannot exceed 1000 characters'],
+    },
+    publishedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -87,6 +132,16 @@ const markSchema = new mongoose.Schema(
       required: [true, 'Marks obtained is required'],
       min: [0, 'Marks cannot be negative'],
     },
+    maxMarks: {
+      type: Number,
+      required: [true, 'Max marks is required'],
+      min: [1, 'Max marks must be at least 1'],
+    },
+    percentage: {
+      type: Number,
+      min: [0, 'Percentage cannot be negative'],
+      max: [100, 'Percentage cannot exceed 100'],
+    },
     grade: {
       type: String,
       trim: true,
@@ -102,9 +157,18 @@ const markSchema = new mongoose.Schema(
       enum: ['draft', 'submitted', 'verified', 'published'],
       default: 'draft',
     },
+    result: {
+      type: String,
+      enum: ['pass', 'fail'],
+      default: 'fail',
+    },
+    class: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Class',
+    },
     enteredBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Teacher',
+      ref: 'User',
       required: [true, 'Entered by is required'],
     },
     verifiedBy: {
@@ -144,4 +208,6 @@ markSchema.pre('save', function (next) {
 
 const Mark = mongoose.model('Mark', markSchema);
 
-module.exports = { Exam, Mark };
+module.exports = Exam;
+module.exports.Exam = Exam;
+module.exports.Mark = Mark;

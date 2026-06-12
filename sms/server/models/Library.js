@@ -31,6 +31,24 @@ const bookSchema = new mongoose.Schema(
       trim: true,
       maxlength: [100, 'Category cannot exceed 100 characters'],
     },
+    publicationYear: {
+      type: Number,
+      min: [1000, 'Publication year must be valid'],
+      max: [new Date().getFullYear(), 'Publication year cannot be in the future'],
+    },
+    language: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'Language cannot exceed 50 characters'],
+    },
+    pages: {
+      type: Number,
+      min: [1, 'Pages must be at least 1'],
+    },
+    price: {
+      type: Number,
+      min: [0, 'Price cannot be negative'],
+    },
     edition: {
       type: String,
       trim: true,
@@ -63,7 +81,7 @@ const bookSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['available', 'issued', 'damaged', 'lost'],
+      enum: ['available', 'issued', 'damaged', 'lost', 'inactive'],
       default: 'available',
     },
   },
@@ -118,6 +136,11 @@ const bookTransactionSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Fine amount cannot be negative'],
     },
+    fine: {
+      type: Number,
+      default: 0,
+      min: [0, 'Fine cannot be negative'],
+    },
     status: {
       type: String,
       enum: ['issued', 'returned', 'overdue'],
@@ -127,6 +150,16 @@ const bookTransactionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Issued by is required'],
+    },
+    receivedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    remarks: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Remarks cannot exceed 500 characters'],
     },
   },
   {

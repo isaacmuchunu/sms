@@ -17,8 +17,10 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/', { replace: true });
+      const result = await login({ email, password });
+      if (!result.success) {
+        setError(result.message || 'Invalid email or password');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid email or password');
     } finally {
@@ -95,7 +97,7 @@ const Login = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-xs text-gray-400">Default: admin@school.com / admin123</p>
+            <p className="text-xs text-gray-400">Default: admin@school.com / Admin@12345</p>
           </div>
         </div>
 

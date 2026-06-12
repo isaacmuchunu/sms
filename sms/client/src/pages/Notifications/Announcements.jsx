@@ -4,6 +4,7 @@ import Modal from '../../components/Modal';
 import InputField from '../../components/Form/InputField';
 import SelectField from '../../components/Form/SelectField';
 import api from '../../services/api';
+import useFetch from '../../hooks/useFetch';
 
 const typeBadge = (type) => {
   const classes = {
@@ -36,6 +37,7 @@ const ROLE_OPTIONS = [
 ];
 
 const Announcements = () => {
+  const { data: announcementsFromApi = [], refetch } = useFetch('/notifications');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     title: '',
@@ -60,12 +62,16 @@ const Announcements = () => {
     e.preventDefault();
     setSending(true);
     try {
-      await api.post('/notifications/announcements', {
-        ...form,
-        scheduledFor: form.sendNow ? null : form.scheduleDate,
+      await api.post('/notifications', {
+        title: form.title,
+        message: form.message,
+        type: 'announcement',
+        targetRoles: form.targetRoles,
+        scheduledDate: form.sendNow ? null : form.scheduleDate,
       });
       setShowForm(false);
       setForm({ title: '', message: '', type: 'General', targetRoles: [], scheduleDate: '', sendNow: true });
+      refetch();
     } catch {
       alert('Failed to send announcement');
     } finally {
@@ -90,14 +96,14 @@ const Announcements = () => {
 
       {/* Announcements List */}
       <div className="space-y-4">
-        {mockAnnouncements.map((a) => (
+        {(Array.isArray(announcementsFromApi) && announcementsFromApi.length > 0 ? announcementsFromApi : mockAnnouncements).map((a) => (
           <div key={a._id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   {typeBadge(a.type)}
                   <span className="text-xs text-gray-400 flex items-center gap-1">
-                    <Calendar size={12} /> {new Date(a.date).toLocaleDateString()}
+                    <Calendar size={12} /> {new Date(a.date || a.createdAt).toLocaleDateString()}
                   </span>
                 </div>
                 <h3 className="text-base font-semibold text-gray-800">{a.title}</h3>
@@ -105,7 +111,7 @@ const Announcements = () => {
               </div>
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 <Users size={12} />
-                <span>By {a.sentBy}</span>
+                <span>By {a.sentBy?.name || a.sentBy || 'System'}</span>
               </div>
             </div>
           </div>

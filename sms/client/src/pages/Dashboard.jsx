@@ -11,6 +11,7 @@ import {
   Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import StatCard from '../components/StatCard';
+import useFetch from '../hooks/useFetch';
 
 const enrollmentData = [
   { month: 'Jun', students: 420 },
@@ -73,6 +74,9 @@ const quickActions = [
 ];
 
 const Dashboard = () => {
+  const { data: dashboardData } = useFetch('/reports/dashboard');
+  const stats = dashboardData?.stats || {};
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -89,10 +93,10 @@ const Dashboard = () => {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Students" value="572" icon={Users} color="indigo" subtitle="+12 this month" />
-        <StatCard title="Total Teachers" value="48" icon={GraduationCap} color="emerald" subtitle="4 departments" />
-        <StatCard title="Today's Attendance" value="94.2%" icon={ClipboardCheck} color="amber" subtitle="540 present" />
-        <StatCard title="Monthly Fee Collection" value="Rs. 3,50,000" icon={IndianRupee} color="blue" subtitle="92% of target" />
+        <StatCard title="Total Students" value={stats.students ?? 572} icon={Users} color="indigo" subtitle="Active enrollment" />
+        <StatCard title="Total Teachers" value={stats.teachers ?? 48} icon={GraduationCap} color="emerald" subtitle="Active staff" />
+        <StatCard title="Present Today" value={stats.presentToday ?? 0} icon={ClipboardCheck} color="amber" subtitle="Marked attendance" />
+        <StatCard title="Fee Collected Today" value={`Rs. ${(stats.feeCollectedToday ?? 0).toLocaleString()}`} icon={IndianRupee} color="blue" subtitle="Recorded payments" />
       </div>
 
       {/* Quick Actions */}

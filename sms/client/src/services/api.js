@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -21,21 +22,50 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: handle errors
+const clearStoredSession = () => {
+  localStorage.removeItem('sms_token');
+  localStorage.removeItem('sms_user');
+};
+
+const isAuthEndpoint = (url = '') =>
+  url.includes('/auth/login') ||
+  url.includes('/auth/refresh-token') ||
+  url.includes('/auth/forgot-password') ||
+  url.includes('/auth/reset-password');
+
+// Response interceptor: refresh expired access tokens and handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (!error.response) {
       toast.error('Network error. Please check your connection.');
       return Promise.reject(error);
     }
 
     const { status, data } = error.response;
+    const originalRequest = error.config || {};
+
+    if (status === 401 && !originalRequest._retry && !isAuthEndpoint(originalRequest.url)) {
+      originalRequest._retry = true;
+
+      try {
+        const response = await api.post('/auth/refresh-token');
+        const token = response.data.data.token;
+        localStorage.setItem('sms_token', token);
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      } catch {
+        clearStoredSession();
+        toast.error('Session expired. Please log in again.');
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+    }
 
     switch (status) {
       case 401:
-        localStorage.removeItem('sms_token');
-        localStorage.removeItem('sms_user');
+        clearStoredSession();
         toast.error('Session expired. Please log in again.');
         window.location.href = '/login';
         break;

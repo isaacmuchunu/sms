@@ -28,26 +28,28 @@ const statusBadge = (status) => {
   );
 };
 
-const mockStudent = {
-  fullName: 'Rahul Sharma',
-  admissionNo: 'SMS2024001',
-  currentClass: '5',
-  currentSection: 'A',
-  fatherPhone: '9876543210',
-};
-
 const FeeCollection = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [foundStudent, setFoundStudent] = useState(mockStudent);
+  const [foundStudent, setFoundStudent] = useState(null);
+  const [feeLedger, setFeeLedger] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedFee, setSelectedFee] = useState(null);
-  const [paymentForm, setPaymentForm] = useState({ amount: '', mode: 'Cash', transactionId: '', date: new Date().toISOString().split('T')[0] });
+  const [paymentForm, setPaymentForm] = useState({ amount: '', mode: 'cash', transactionId: '', date: new Date().toISOString().split('T')[0] });
   const [processing, setProcessing] = useState(false);
 
   const handleSearch = async () => {
     try {
       const res = await api.get(`/students/search?q=${searchQuery}`);
-      setFoundStudent(res.data.data);
+      const student = res.data.data?.students?.[0];
+      if (!student) {
+        setFoundStudent(null);
+        setFeeLedger([]);
+        alert('Student not found');
+        return;
+      }
+      setFoundStudent(student);
+      const ledgerRes = await api.get(`/fees/student/${student._id}/ledger?academicYear=2024-2025`);
+      setFeeLedger(ledgerRes.data.data?.ledger || []);
     } catch {
       alert('Student not found');
     }
@@ -57,7 +59,7 @@ const FeeCollection = () => {
     setSelectedFee(fee);
     setPaymentForm({
       amount: fee.balance,
-      mode: 'Cash',
+      mode: 'cash',
       transactionId: '',
       date: new Date().toISOString().split('T')[0],
     });
@@ -68,8 +70,13 @@ const FeeCollection = () => {
     setProcessing(true);
     try {
       await api.post('/fees/payments', {
-        feeId: selectedFee._id,
-        ...paymentForm,
+        student: foundStudent._id,
+        feeHead: selectedFee.feeHead?._id,
+        amount: Number(paymentForm.amount),
+        paymentMode: paymentForm.mode,
+        paymentDate: paymentForm.date,
+        transactionId: paymentForm.transactionId,
+        academicYear: '2024-2025',
       });
       setShowPaymentModal(false);
       alert('Payment recorded successfully');
@@ -80,8 +87,15 @@ const FeeCollection = () => {
     }
   };
 
-  const totalDue = mockFeeLedger.reduce((s, f) => s + f.balance, 0);
-  const totalPaid = mockFeeLedger.reduce((s, f) => s + f.paid, 0);
+  const totalDue = feeLedger.reduce((s, f) => s + (f.balance || 0), 0);
+  const totalPaid = feeLedger.reduce((s, f) => s + (f.paid || 0), 0);
+  const studentName = foundStudent
+    ? foundStudent.fullName || [foundStudent.firstName, foundStudent.lastName].filter(Boolean).join(' ')
+    : '';
+  const classLabel =
+    typeof foundStudent?.currentClass === 'object'
+      ? `${foundStudent.currentClass.name}-${foundStudent.currentClass.section}`
+      : foundStudent?.currentClass || '';
 
   return (
     <div className="space-y-6">
@@ -120,9 +134,9 @@ const FeeCollection = () => {
               <IndianRupee size={20} className="text-indigo-600" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-bold text-gray-900">{foundStudent.fullName}</h3>
+              <h3 className="text-lg font-bold text-gray-900">{studentName}</h3>
               <p className="text-sm text-gray-600">
-                Admission: {foundStudent.admissionNo} | Class {foundStudent.currentClass}-{foundStudent.currentSection} | Phone: {foundStudent.fatherPhone}
+                Admission: {foundStudent.admissionNo} | Class {classLabel || '-'} | Phone: {foundStudent.fatherPhone || '-'}
               </p>
             </div>
             <div className="flex gap-4 text-sm">
@@ -158,13 +172,20 @@ const FeeCollection = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {mockFeeLedger.map((fee) => (
-                <tr key={fee._id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-800">{fee.head}</td>
+              {feeLedger.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                    Search and select a student to load their fee ledger.
+                  </td>
+                </tr>
+              )}
+              {feeLedger.map((fee) => (
+                <tr key={fee.feeHead?._id || fee._id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-800">{fee.feeHead?.name || 'Fee'}</td>
                   <td className="px-4 py-3 text-right">Rs. {fee.amount.toLocaleString()}</td>
                   <td className="px-4 py-3 text-center text-gray-500">{new Date(fee.dueDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-right text-emerald-600">Rs. {fee.paid.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-center">{statusBadge(fee.status)}</td>
+                  <td className="px-4 py-3 text-center">{statusBadge(fee.status?.replace(/^\w/, (c) => c.toUpperCase()))}</td>
                   <td className="px-4 py-3 text-right font-medium text-gray-800">Rs. {fee.balance.toLocaleString()}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1">
@@ -196,7 +217,7 @@ const FeeCollection = () => {
         {selectedFee && (
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-500">Fee: <span className="font-medium text-gray-800">{selectedFee.head}</span></p>
+              <p className="text-sm text-gray-500">Fee: <span className="font-medium text-gray-800">{selectedFee.feeHead?.name || 'Fee'}</span></p>
               <p className="text-sm text-gray-500">Balance: <span className="font-medium text-red-600">Rs. {selectedFee.balance.toLocaleString()}</span></p>
             </div>
             <InputField
@@ -213,11 +234,10 @@ const FeeCollection = () => {
               value={paymentForm.mode}
               onChange={(e) => setPaymentForm({ ...paymentForm, mode: e.target.value })}
               options={[
-                { value: 'Cash', label: 'Cash' },
-                { value: 'UPI', label: 'UPI' },
-                { value: 'Bank Transfer', label: 'Bank Transfer' },
-                { value: 'Cheque', label: 'Cheque' },
-                { value: 'Card', label: 'Card' },
+                { value: 'cash', label: 'Cash' },
+                { value: 'online', label: 'Online/UPI' },
+                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'cheque', label: 'Cheque' },
               ]}
             />
             <InputField

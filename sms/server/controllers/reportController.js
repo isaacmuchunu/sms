@@ -373,8 +373,8 @@ exports.getExamStats = catchAsync(async (req, res) => {
     .lean();
 
   // Pass/fail ratio
-  const passCount = marks.filter((m) => m.status === 'pass').length;
-  const failCount = marks.filter((m) => m.status === 'fail').length;
+  const passCount = marks.filter((m) => m.result === 'pass').length;
+  const failCount = marks.filter((m) => m.result === 'fail').length;
 
   // Grade distribution
   const gradeDistribution = {};

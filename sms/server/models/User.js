@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      minlength: [8, 'Password must be at least 8 characters'],
       select: false,
     },
     role: {
@@ -68,6 +68,24 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    refreshToken: {
+      type: String,
+      select: false,
+      default: undefined,
+    },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+      default: undefined,
+    },
+    resetPasswordExpire: {
+      type: Date,
+      default: undefined,
+    },
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -87,6 +105,9 @@ userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
 
   try {
+    if (!this.isNew) {
+      this.passwordChangedAt = new Date(Date.now() - 1000);
+    }
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
@@ -103,7 +124,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 // Instance method: generate signed JWT token
 userSchema.methods.getSignedJwtToken = function () {
   return jwt.sign(
-    { userId: this._id, role: this.role, email: this.email },
+    { id: this._id, role: this.role, email: this.email },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE || '15m' }
   );
@@ -112,7 +133,7 @@ userSchema.methods.getSignedJwtToken = function () {
 // Instance method: generate refresh token
 userSchema.methods.getRefreshToken = function () {
   return jwt.sign(
-    { userId: this._id },
+    { id: this._id },
     process.env.JWT_REFRESH_SECRET,
     { expiresIn: process.env.JWT_REFRESH_EXPIRE || '7d' }
   );

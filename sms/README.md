@@ -122,11 +122,13 @@ npm run seed
 ```
 
 This creates:
-- Admin user: `admin@school.com` / `password123`
+- Admin user: `admin@school.com` / `Admin@12345`
 - 12 classes (Grade 1-12)
 - 10 subjects
 - 3 sample teachers
 - 20 sample students
+- Fee heads and fee structures for every class
+- Library books, transport routes/vehicles, and hostel rooms
 
 ### 4. Start the Backend
 
@@ -162,7 +164,7 @@ The app opens at `http://localhost:5173`
 
 Use the seeded admin account:
 - **Email:** `admin@school.com`
-- **Password:** `password123`
+- **Password:** `Admin@12345`
 
 ---
 
@@ -178,11 +180,15 @@ Use the seeded admin account:
 | `JWT_EXPIRE` | Access token expiry | `15m` |
 | `JWT_REFRESH_SECRET` | Refresh token secret | (random string) |
 | `JWT_REFRESH_EXPIRE` | Refresh token expiry | `7d` |
+| `SEED_ADMIN_PASSWORD` | Password for seeded admin/teacher accounts | `Admin@12345` |
+| `AUTH_RATE_LIMIT_MAX` | Auth requests allowed per 15 minutes per IP | `20` |
+| `RATE_LIMIT_MAX` | General requests allowed per 15 minutes per IP | `500` |
 | `EMAIL_HOST` | SMTP host | `smtp.gmail.com` |
 | `EMAIL_PORT` | SMTP port | `587` |
 | `EMAIL_USER` | Email address | `your-email@gmail.com` |
 | `EMAIL_PASS` | Email password / app password | `your-app-password` |
 | `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:5173` |
+| `CLIENT_URL` | Frontend URL alias for CORS/reset links | `http://localhost:5173` |
 | `NODE_ENV` | Environment | `development` |
 
 ### Client (`client/.env`)

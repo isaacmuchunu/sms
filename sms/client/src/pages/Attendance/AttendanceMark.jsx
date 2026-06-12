@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Save, CheckCircle, Users, Calendar, BookOpen } from 'lucide-react';
 import SelectField from '../../components/Form/SelectField';
 import api from '../../services/api';
+import useFetch from '../../hooks/useFetch';
 
 const CLASS_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1),
@@ -30,22 +31,59 @@ const STATUS_CONFIG = {
   Excused: { color: 'bg-purple-500 hover:bg-purple-600', label: 'E', text: 'text-purple-700', bg: 'bg-purple-50' },
 };
 
-// Mock students
-const mockStudents = Array.from({ length: 25 }, (_, i) => ({
-  _id: `s${i + 1}`,
-  rollNo: i + 1,
-  fullName: `Student ${i + 1}`,
-  status: 'Present',
-}));
+const STATUS_TO_API = {
+  Present: 'present',
+  Absent: 'absent',
+  Late: 'late',
+  HalfDay: 'half_day',
+  Excused: 'excused',
+};
 
 const AttendanceMark = () => {
+  const { data: classes = [] } = useFetch('/classes');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [students, setStudents] = useState(mockStudents);
+  const [students, setStudents] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const classOptions = useMemo(() => {
+    if (!Array.isArray(classes) || classes.length === 0) {
+      return CLASS_OPTIONS;
+    }
+
+    return classes.map((cls) => ({
+      value: cls._id,
+      label: `${cls.name} - Section ${cls.section}`,
+      section: cls.section,
+    }));
+  }, [classes]);
+
+  useEffect(() => {
+    const loadStudents = async () => {
+      if (!selectedClass) {
+        setStudents([]);
+        return;
+      }
+
+      const cls = classOptions.find((option) => option.value === selectedClass);
+      setSelectedSection(cls?.section || '');
+
+      const res = await api.get(`/students/class/${selectedClass}`);
+      const loadedStudents = res.data.data?.students || [];
+      setStudents(
+        loadedStudents.map((student) => ({
+          ...student,
+          fullName: student.fullName || [student.firstName, student.lastName].filter(Boolean).join(' '),
+          status: 'Present',
+        }))
+      );
+    };
+
+    loadStudents().catch(() => setStudents([]));
+  }, [selectedClass, classOptions]);
 
   const updateStatus = (id, status) => {
     setStudents((prev) => prev.map((s) => (s._id === id ? { ...s, status } : s)));
@@ -60,12 +98,11 @@ const AttendanceMark = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.post('/attendance', {
+      await api.post('/attendance/bulk-mark', {
         class: selectedClass,
-        section: selectedSection,
         date: selectedDate,
         subject: selectedSubject || undefined,
-        records: students.map((s) => ({ studentId: s._id, status: s.status })),
+        attendanceList: students.map((s) => ({ student: s._id, status: STATUS_TO_API[s.status] })),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -81,7 +118,7 @@ const AttendanceMark = () => {
     present: students.filter((s) => s.status === 'Present').length,
     absent: students.filter((s) => s.status === 'Absent').length,
     late: students.filter((s) => s.status === 'Late').length,
-    halfDay: students.filter((s) => s.status === 'HalfDay').length,
+    halfday: students.filter((s) => s.status === 'HalfDay').length,
     excused: students.filter((s) => s.status === 'Excused').length,
   };
 
@@ -102,7 +139,7 @@ const AttendanceMark = () => {
               name="class"
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
-              options={CLASS_OPTIONS}
+              options={classOptions}
             />
             <SelectField
               label="Section"
@@ -215,7 +252,7 @@ const AttendanceMark = () => {
         </div>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !selectedClass || students.length === 0}
           className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
         >
           <Save size={16} />

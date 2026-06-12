@@ -86,6 +86,7 @@ exports.createSubject = catchAsync(async (req, res) => {
     description,
     maxMarks,
     passMarks,
+    passingMarks,
     isOptional,
     credits,
   } = req.body;
@@ -99,10 +100,10 @@ exports.createSubject = catchAsync(async (req, res) => {
   const subject = await Subject.create({
     name,
     code,
-    type: type || 'theory',
+    type: type || 'core',
     description,
     maxMarks,
-    passMarks,
+    passingMarks: passingMarks ?? passMarks,
     isOptional: isOptional || false,
     credits,
   });
@@ -121,6 +122,7 @@ exports.updateSubject = catchAsync(async (req, res) => {
     description,
     maxMarks,
     passMarks,
+    passingMarks,
     isOptional,
     credits,
     status,
@@ -137,7 +139,7 @@ exports.updateSubject = catchAsync(async (req, res) => {
   if (type) updateData.type = type;
   if (description !== undefined) updateData.description = description;
   if (maxMarks) updateData.maxMarks = maxMarks;
-  if (passMarks) updateData.passMarks = passMarks;
+  if (passMarks || passingMarks) updateData.passingMarks = passingMarks ?? passMarks;
   if (isOptional !== undefined) updateData.isOptional = isOptional;
   if (credits) updateData.credits = credits;
   if (status) updateData.status = status;

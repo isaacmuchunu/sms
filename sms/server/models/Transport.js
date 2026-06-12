@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 // ── Vehicle Schema ──────────────────────────────────────────────
 const vehicleSchema = new mongoose.Schema(
   {
-    registrationNo: {
+    registrationNumber: {
       type: String,
       required: [true, 'Registration number is required'],
       unique: true,
@@ -19,6 +19,27 @@ const vehicleSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [100, 'Model cannot exceed 100 characters'],
+    },
+    manufacturer: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Manufacturer cannot exceed 100 characters'],
+    },
+    yearOfManufacture: {
+      type: Number,
+      min: [1950, 'Manufacture year must be valid'],
+      max: [new Date().getFullYear(), 'Manufacture year cannot be in the future'],
+    },
+    color: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'Color cannot exceed 50 characters'],
+    },
+    insuranceExpiry: {
+      type: Date,
+    },
+    fitnessExpiry: {
+      type: Date,
     },
     capacity: {
       type: Number,
@@ -48,7 +69,7 @@ const vehicleSchema = new mongoose.Schema(
 );
 
 // Indexes
-vehicleSchema.index({ registrationNo: 1 }, { unique: true });
+vehicleSchema.index({ registrationNumber: 1 }, { unique: true });
 vehicleSchema.index({ type: 1 });
 vehicleSchema.index({ status: 1 });
 
@@ -57,7 +78,7 @@ const Vehicle = mongoose.model('Vehicle', vehicleSchema);
 // ── Route Schema ──────────────────────────────────────────────
 const routeSchema = new mongoose.Schema(
   {
-    name: {
+    routeName: {
       type: String,
       required: [true, 'Route name is required'],
       trim: true,
@@ -96,12 +117,40 @@ const routeSchema = new mongoose.Schema(
     vehicle: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Vehicle',
-      required: [true, 'Vehicle reference is required'],
+      default: null,
     },
-    fee: {
+    students: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Student',
+      },
+    ],
+    startPoint: {
+      type: String,
+      trim: true,
+    },
+    endPoint: {
+      type: String,
+      trim: true,
+    },
+    totalDistance: {
+      type: Number,
+      default: 0,
+      min: [0, 'Distance cannot be negative'],
+    },
+    estimatedTime: {
+      type: String,
+      trim: true,
+    },
+    fare: {
       type: Number,
       default: 0,
       min: [0, 'Fee cannot be negative'],
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Description cannot exceed 1000 characters'],
     },
     status: {
       type: String,

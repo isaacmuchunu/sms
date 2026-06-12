@@ -8,7 +8,8 @@ import SelectField from '../../components/Form/SelectField';
 import api from '../../services/api';
 
 const statusBadge = (status, available, total) => {
-  if (status === 'Lost') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">Lost</span>;
+  if (status === 'lost') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">Lost</span>;
+  if (status === 'inactive') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Inactive</span>;
   if (available === 0) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">Issued</span>;
   return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">Available</span>;
 };

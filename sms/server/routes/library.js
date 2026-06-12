@@ -21,7 +21,7 @@ router
 router.post('/books/:id/issue', authorize('admin', 'librarian'), libraryController.issueBook);
 
 // ── Transactions ───────────────────────────────────────────
-router.get('/transactions', libraryController.getTransactions);
+router.get('/transactions', authorize('admin', 'librarian'), libraryController.getTransactions);
 
 // Return book
 router.post(
@@ -31,6 +31,6 @@ router.post(
 );
 
 // ── Overdue ────────────────────────────────────────────────
-router.get('/overdue', libraryController.getOverdue);
+router.get('/overdue', authorize('admin', 'librarian'), libraryController.getOverdue);
 
 module.exports = router;

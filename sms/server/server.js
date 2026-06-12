@@ -6,6 +6,7 @@ const compression = require('compression');
 const morgan = require('morgan');
 const mongoSanitize = require('express-mongo-sanitize');
 const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 
 // Load env vars
 if (process.env.NODE_ENV !== 'production') {
@@ -36,15 +37,52 @@ const { errorHandler } = require('./middleware/error');
 // Create Express app
 const app = express();
 
+app.set('trust proxy', 1);
+
+const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+
+const validateRuntimeConfig = () => {
+  const weakSecrets = new Set([
+    undefined,
+    '',
+    'your-super-secret-jwt-key-change-in-production',
+    'your-refresh-secret-change-in-production',
+  ]);
+
+  if (process.env.NODE_ENV === 'production') {
+    if (weakSecrets.has(process.env.JWT_SECRET) || weakSecrets.has(process.env.JWT_REFRESH_SECRET)) {
+      throw new Error('Production JWT secrets must be configured with strong non-default values.');
+    }
+  }
+};
+
 // ── Global Middleware ──────────────────────────────────────
 
 // Security headers
 app.use(helmet());
 
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.RATE_LIMIT_MAX || 500),
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.AUTH_RATE_LIMIT_MAX || 20),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many authentication attempts. Please try again later.',
+  },
+});
+
 // Enable CORS
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: clientUrl,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -52,8 +90,8 @@ app.use(
 );
 
 // Body parser
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // Cookie parser
 app.use(cookieParser());
@@ -63,6 +101,9 @@ app.use(mongoSanitize());
 
 // Compression
 app.use(compression());
+
+// Rate limiting
+app.use(generalLimiter);
 
 // Logging
 if (process.env.NODE_ENV === 'development') {
@@ -84,6 +125,9 @@ app.get('/health', (req, res) => {
 });
 
 // API v1 routes
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/forgot-password', authLimiter);
+app.use('/api/v1/auth/reset-password', authLimiter);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/students', studentRoutes);
 app.use('/api/v1/teachers', teacherRoutes);
@@ -118,6 +162,7 @@ const PORT = process.env.PORT || 5000;
 // Connect to database and start server
 const startServer = async () => {
   try {
+    validateRuntimeConfig();
     await connectDB();
 
     const server = app.listen(PORT, () => {

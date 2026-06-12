@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
@@ -45,7 +45,12 @@ export const AuthProvider = ({ children }) => {
     [navigate]
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Local logout should still complete if the server session is already gone.
+    }
     localStorage.removeItem('sms_token');
     localStorage.removeItem('sms_user');
     setUser(null);

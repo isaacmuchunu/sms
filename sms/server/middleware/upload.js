@@ -1,10 +1,17 @@
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 
 // Allowed file types
 const ALLOWED_IMAGE_TYPES = ['.jpg', '.jpeg', '.png'];
 const ALLOWED_FILE_TYPES = [...ALLOWED_IMAGE_TYPES, '.pdf'];
+const ALLOWED_MIME_TYPES = {
+  '.jpg': ['image/jpeg'],
+  '.jpeg': ['image/jpeg'],
+  '.png': ['image/png'],
+  '.pdf': ['application/pdf'],
+};
 
 // Storage configuration
 const storage = multer.diskStorage({
@@ -18,6 +25,7 @@ const storage = multer.diskStorage({
     } else {
       uploadPath += 'general/';
     }
+    fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
@@ -31,8 +39,9 @@ const storage = multer.diskStorage({
 // File filter
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
+  const allowedMimeTypes = ALLOWED_MIME_TYPES[ext] || [];
 
-  if (ALLOWED_FILE_TYPES.includes(ext)) {
+  if (ALLOWED_FILE_TYPES.includes(ext) && allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(
@@ -102,4 +111,5 @@ module.exports = {
   handleUpload,
   ALLOWED_IMAGE_TYPES,
   ALLOWED_FILE_TYPES,
+  ALLOWED_MIME_TYPES,
 };

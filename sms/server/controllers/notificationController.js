@@ -4,6 +4,16 @@ const catchAsync = require('../utils/catchAsync');
 const ApiResponse = require('../utils/ApiResponse');
 const ApiError = require('../utils/ApiError');
 
+const userCanAccessNotification = (notification, user) => {
+  const targetRoles = notification.targetRoles || [];
+  const recipients = notification.recipients || [];
+
+  return (
+    targetRoles.includes(user.role) ||
+    recipients.some((recipient) => recipient.user?.toString() === user.id)
+  );
+};
+
 // @desc    Get notifications for current user
 // @route   GET /api/v1/notifications
 // @access  Private
@@ -46,11 +56,12 @@ exports.getNotifications = catchAsync(async (req, res) => {
       ...n,
       isRead: readStatus,
       readAt,
+      isDeleted: recipientEntry?.deleted || false,
     };
   });
 
   // Filter by read status if requested
-  let filteredNotifications = enrichedNotifications;
+  let filteredNotifications = enrichedNotifications.filter((n) => !n.isDeleted);
   if (status === 'read') {
     filteredNotifications = enrichedNotifications.filter((n) => n.isRead);
   } else if (status === 'unread') {
@@ -135,6 +146,10 @@ exports.markAsRead = catchAsync(async (req, res) => {
     throw new ApiError('Notification not found', 404);
   }
 
+  if (!userCanAccessNotification(notification, req.user)) {
+    throw new ApiError('Notification not found', 404);
+  }
+
   // Check if user is in recipients
   const recipientEntry = notification.recipients.find(
     (r) => r.user?.toString() === req.user.id
@@ -180,6 +195,7 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
     );
 
     if (recipientEntry && !recipientEntry.read) {
+      if (recipientEntry.deleted) continue;
       recipientEntry.read = true;
       recipientEntry.readAt = new Date();
       updatedCount++;
@@ -208,6 +224,10 @@ exports.markAllAsRead = catchAsync(async (req, res) => {
 exports.deleteNotification = catchAsync(async (req, res) => {
   const notification = await Notification.findById(req.params.id);
   if (!notification) {
+    throw new ApiError('Notification not found', 404);
+  }
+
+  if (!userCanAccessNotification(notification, req.user)) {
     throw new ApiError('Notification not found', 404);
   }
 
@@ -254,7 +274,7 @@ exports.getUnreadCount = catchAsync(async (req, res) => {
       (r) => r.user?.toString() === userId
     );
 
-    if (!recipientEntry || !recipientEntry.read) {
+    if (!recipientEntry || (!recipientEntry.deleted && !recipientEntry.read)) {
       unreadCount++;
     }
   });

@@ -95,6 +95,7 @@ exports.createExam = catchAsync(async (req, res) => {
     maxMarks,
     passPercentage,
     description,
+    createdBy: req.user.id,
   });
 
   const populatedExam = await Exam.findById(exam._id)
@@ -231,9 +232,10 @@ exports.addMarks = catchAsync(async (req, res) => {
         maxMarks,
         percentage: percentage.toFixed(2),
         grade,
-        status: passFail,
+        result: passFail,
+        status: 'submitted',
         remarks: markEntry.remarks || '',
-        recordedBy: req.user.id,
+        enteredBy: req.user.id,
       };
 
       const existingMark = await Mark.findOne(filter);
@@ -354,6 +356,7 @@ exports.getResult = catchAsync(async (req, res) => {
   const overallPercentage = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(2) : 0;
   const overallGrade = calculateGrade(Number(overallPercentage));
   const result = marks.every((m) => m.status === 'pass' || m.status === 'published') ? 'pass' : 'fail';
+  const hasPassed = marks.length > 0 && marks.every((m) => m.result === 'pass');
 
   const resultData = {
     student,
@@ -364,7 +367,7 @@ exports.getResult = catchAsync(async (req, res) => {
       totalMax,
       percentage: overallPercentage,
       grade: overallGrade,
-      result,
+      result: hasPassed ? 'pass' : 'fail',
     },
   };
 
@@ -382,7 +385,7 @@ exports.getClassResult = catchAsync(async (req, res) => {
     Student.find({ currentClass: classId, status: 'active' })
       .select('firstName lastName rollNo')
       .lean(),
-    Mark.find({ exam: examId })
+    Mark.find({ exam: examId, class: classId })
       .populate('subject', 'name code')
       .lean(),
   ]);
@@ -403,7 +406,7 @@ exports.getClassResult = catchAsync(async (req, res) => {
     const totalObtained = studentMarks.reduce((sum, m) => sum + m.marksObtained, 0);
     const totalMax = studentMarks.reduce((sum, m) => sum + m.maxMarks, 0);
     const percentage = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(2) : 0;
-    const hasPassed = studentMarks.every((m) => m.status === 'pass' || m.status === 'published');
+    const hasPassed = studentMarks.length > 0 && studentMarks.every((m) => m.result === 'pass');
 
     if (hasPassed) passCount++;
     else failCount++;

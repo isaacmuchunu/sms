@@ -42,6 +42,12 @@ const ClassList = () => {
     { _id: '11', name: 'Class 6', section: 'A', capacity: 50, studentsCount: 46, classTeacher: 'Mrs. Khan' },
     { _id: '12', name: 'Class 6', section: 'B', capacity: 50, studentsCount: 40, classTeacher: 'Mr. Verma' },
   ];
+  const totalStudents = classData.reduce((s, c) => s + (c.studentsCount || 0), 0);
+  const totalCapacity = classData.reduce((s, c) => s + (c.capacity || 0), 0);
+  const getTeacherName = (teacher) =>
+    typeof teacher === 'object' && teacher
+      ? [teacher.firstName, teacher.lastName].filter(Boolean).join(' ') || teacher.name
+      : teacher;
 
   return (
     <div className="space-y-6">
@@ -65,16 +71,16 @@ const ClassList = () => {
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
           <p className="text-xs text-gray-500">Total Students</p>
-          <p className="text-2xl font-bold text-emerald-600">{classData.reduce((s, c) => s + c.studentsCount, 0)}</p>
+          <p className="text-2xl font-bold text-emerald-600">{totalStudents}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
           <p className="text-xs text-gray-500">Total Capacity</p>
-          <p className="text-2xl font-bold text-blue-600">{classData.reduce((s, c) => s + c.capacity, 0)}</p>
+          <p className="text-2xl font-bold text-blue-600">{totalCapacity}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
           <p className="text-xs text-gray-500">Avg Occupancy</p>
           <p className="text-2xl font-bold text-amber-600">
-            {Math.round((classData.reduce((s, c) => s + c.studentsCount, 0) / classData.reduce((s, c) => s + c.capacity, 0)) * 100)}%
+            {totalCapacity > 0 ? Math.round((totalStudents / totalCapacity) * 100) : 0}%
           </p>
         </div>
       </div>
@@ -82,7 +88,7 @@ const ClassList = () => {
       {/* Class Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {classData.map((cls) => {
-          const occupancyPercent = Math.round((cls.studentsCount / cls.capacity) * 100);
+          const occupancyPercent = cls.capacity > 0 ? Math.round(((cls.studentsCount || 0) / cls.capacity) * 100) : 0;
           const barColor = occupancyPercent >= 90 ? 'bg-red-500' : occupancyPercent >= 75 ? 'bg-amber-500' : 'bg-emerald-500';
 
           return (
@@ -103,11 +109,11 @@ const ClassList = () => {
               <div className="space-y-2 mb-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Users size={14} />
-                  <span>{cls.studentsCount} / {cls.capacity} students</span>
+                  <span>{cls.studentsCount || 0} / {cls.capacity || 0} students</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <UserCheck size={14} />
-                  <span>{cls.classTeacher || 'Not assigned'}</span>
+                  <span>{getTeacherName(cls.classTeacher) || 'Not assigned'}</span>
                 </div>
               </div>
 
@@ -141,27 +147,35 @@ const ClassList = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <p className="text-xs text-gray-500">Students</p>
-                <p className="text-xl font-bold text-indigo-600">{selectedClass.studentsCount}</p>
+                <p className="text-xl font-bold text-indigo-600">{selectedClass.studentsCount || 0}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <p className="text-xs text-gray-500">Capacity</p>
-                <p className="text-xl font-bold text-emerald-600">{selectedClass.capacity}</p>
+                <p className="text-xl font-bold text-emerald-600">{selectedClass.capacity || 0}</p>
               </div>
             </div>
             <div>
               <p className="text-sm text-gray-500">Class Teacher</p>
-              <p className="text-base font-medium text-gray-800">{selectedClass.classTeacher || 'Not assigned'}</p>
+              <p className="text-base font-medium text-gray-800">{getTeacherName(selectedClass.classTeacher) || 'Not assigned'}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500 mb-2">Capacity Utilization</p>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
                   className="bg-indigo-600 h-3 rounded-full"
-                  style={{ width: `${Math.round((selectedClass.studentsCount / selectedClass.capacity) * 100)}%` }}
+                  style={{
+                    width: `${
+                      selectedClass.capacity > 0
+                        ? Math.round(((selectedClass.studentsCount || 0) / selectedClass.capacity) * 100)
+                        : 0
+                    }%`,
+                  }}
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                {Math.round((selectedClass.studentsCount / selectedClass.capacity) * 100)}% full
+                {selectedClass.capacity > 0
+                  ? Math.round(((selectedClass.studentsCount || 0) / selectedClass.capacity) * 100)
+                  : 0}% full
               </p>
             </div>
           </div>

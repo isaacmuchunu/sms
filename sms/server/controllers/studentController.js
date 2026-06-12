@@ -9,6 +9,20 @@ const catchAsync = require('../utils/catchAsync');
 const ApiResponse = require('../utils/ApiResponse');
 const ApiError = require('../utils/ApiError');
 
+const stripEmptyStrings = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(stripEmptyStrings);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, val]) => [key, stripEmptyStrings(val)])
+        .filter(([, val]) => val !== undefined)
+    );
+  }
+  return value === '' ? undefined : value;
+};
+
 // @desc    Get all students with filters and pagination
 // @route   GET /api/v1/students
 // @access  Admin, Teacher
@@ -94,7 +108,9 @@ exports.getStudent = catchAsync(async (req, res) => {
     present: attendanceSummary.find((a) => a._id === 'present')?.count || 0,
     absent: attendanceSummary.find((a) => a._id === 'absent')?.count || 0,
     late: attendanceSummary.find((a) => a._id === 'late')?.count || 0,
-    halfDay: attendanceSummary.find((a) => a._id === 'halfDay')?.count || 0,
+    halfDay:
+      (attendanceSummary.find((a) => a._id === 'halfDay')?.count || 0) +
+      (attendanceSummary.find((a) => a._id === 'half_day')?.count || 0),
     total: attendanceSummary.reduce((sum, a) => sum + a.count, 0),
   };
 
@@ -103,10 +119,10 @@ exports.getStudent = catchAsync(async (req, res) => {
   const feeSummary = {
     totalPaid: feePayments
       .filter((f) => f.status === 'paid')
-      .reduce((sum, f) => sum + f.amount, 0),
+      .reduce((sum, f) => sum + (f.amount || f.amountPaid || 0), 0),
     totalPending: feePayments
       .filter((f) => f.status === 'pending')
-      .reduce((sum, f) => sum + f.amount, 0),
+      .reduce((sum, f) => sum + (f.amount || f.amountPaid || 0), 0),
   };
 
   return ApiResponse.success(
@@ -120,7 +136,7 @@ exports.getStudent = catchAsync(async (req, res) => {
 // @route   POST /api/v1/students
 // @access  Admin
 exports.createStudent = catchAsync(async (req, res) => {
-  const { admissionNo, currentClass, ...studentData } = req.body;
+  const { admissionNo, currentClass, ...studentData } = stripEmptyStrings(req.body);
 
   // Validate admission number unique
   const existingStudent = await Student.findOne({ admissionNo });
@@ -151,7 +167,7 @@ exports.createStudent = catchAsync(async (req, res) => {
 // @route   PUT /api/v1/students/:id
 // @access  Admin
 exports.updateStudent = catchAsync(async (req, res) => {
-  const { currentClass: newClassId, ...updateData } = req.body;
+  const { currentClass: newClassId, ...updateData } = stripEmptyStrings(req.body);
 
   const student = await Student.findById(req.params.id);
   if (!student) {

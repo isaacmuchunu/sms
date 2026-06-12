@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Save, School, Calendar, Award, Bell, CheckCircle } from 'lucide-react';
 import InputField from '../../components/Form/InputField';
-import api from '../../services/api';
 
 const TABS = [
   { id: 'school', label: 'School Info', icon: School },
@@ -58,12 +57,10 @@ const Settings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.post('/settings', {
-        schoolInfo,
-        academicYear,
-        gradingScale,
-        notificationSettings,
-      });
+      localStorage.setItem(
+        'sms_settings',
+        JSON.stringify({ schoolInfo, academicYear, gradingScale, notificationSettings })
+      );
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {

@@ -20,6 +20,7 @@ router
 
 // Publish results
 router.post('/:id/publish', authorize('admin'), examController.publishResults);
+router.patch('/:id/publish', authorize('admin'), examController.publishResults);
 
 // Marks routes
 router.post(

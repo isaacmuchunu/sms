@@ -36,6 +36,14 @@ const authenticate = async (req, res, next) => {
       return next(new ApiError('Your account has been deactivated', 403));
     }
 
+    if (
+      user.passwordChangedAt &&
+      decoded.iat &&
+      user.passwordChangedAt.getTime() / 1000 > decoded.iat
+    ) {
+      return next(new ApiError('Password was changed recently. Please log in again.', 401));
+    }
+
     req.user = user;
     next();
   } catch (error) {
@@ -60,6 +68,10 @@ const authorize = (...roles) => {
       return next(new ApiError('Authentication required', 401));
     }
 
+    if (req.user.role === 'super_admin' || roles.includes(req.user.role)) {
+      return next();
+    }
+
     if (!roles.includes(req.user.role)) {
       return next(
         new ApiError(
@@ -69,7 +81,6 @@ const authorize = (...roles) => {
       );
     }
 
-    next();
   };
 };
 

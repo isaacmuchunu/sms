@@ -3,9 +3,9 @@ import { Navigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, isLoading, isAuthenticated } = useAuth();
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />

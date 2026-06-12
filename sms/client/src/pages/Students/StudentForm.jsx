@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save, ArrowLeft, User, School, Users, MapPin } from 'lucide-react';
 import InputField from '../../components/Form/InputField';
 import SelectField from '../../components/Form/SelectField';
 import api from '../../services/api';
+import useFetch from '../../hooks/useFetch';
 
 const TABS = [
   { id: 'personal', label: 'Personal Info', icon: User },
@@ -39,6 +40,7 @@ const SECTION_OPTIONS = ['A', 'B', 'C', 'D'].map((s) => ({
 
 const StudentForm = () => {
   const navigate = useNavigate();
+  const { data: classes = [] } = useFetch('/classes');
   const [activeTab, setActiveTab] = useState('personal');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -74,6 +76,17 @@ const StudentForm = () => {
     state: '',
     pincode: '',
   });
+
+  const classOptions = useMemo(() => {
+    if (!Array.isArray(classes) || classes.length === 0) {
+      return CLASS_OPTIONS;
+    }
+
+    return classes.map((cls) => ({
+      value: cls._id,
+      label: `${cls.name} - Section ${cls.section}`,
+    }));
+  }, [classes]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -123,7 +136,7 @@ const StudentForm = () => {
       <InputField label="Admission Number" name="admissionNo" value={form.admissionNo} onChange={handleChange} required />
       <InputField label="Roll Number" name="rollNo" value={form.rollNo} onChange={handleChange} />
       <InputField label="Academic Year" name="academicYear" value={form.academicYear} onChange={handleChange} placeholder="2024-2025" required />
-      <SelectField label="Current Class" name="currentClass" value={form.currentClass} onChange={handleChange} options={CLASS_OPTIONS} required />
+      <SelectField label="Current Class" name="currentClass" value={form.currentClass} onChange={handleChange} options={classOptions} required />
       <SelectField label="Current Section" name="currentSection" value={form.currentSection} onChange={handleChange} options={SECTION_OPTIONS} required />
       <InputField label="Previous School" name="previousSchool" value={form.previousSchool} onChange={handleChange} />
       <InputField label="Previous Class %" name="previousClassPercentage" type="number" value={form.previousClassPercentage} onChange={handleChange} placeholder="0-100" />

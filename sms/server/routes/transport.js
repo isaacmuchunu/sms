@@ -10,23 +10,23 @@ router.use(authenticate);
 router
   .route('/routes')
   .get(transportController.getRoutes)
-  .post(authorize('admin'), transportController.createRoute);
+  .post(authorize('admin', 'transport_manager'), transportController.createRoute);
 
 router
   .route('/routes/:id')
-  .put(authorize('admin'), transportController.updateRoute)
-  .delete(authorize('admin'), transportController.deleteRoute);
+  .put(authorize('admin', 'transport_manager'), transportController.updateRoute)
+  .delete(authorize('admin', 'transport_manager'), transportController.deleteRoute);
 
 // Student management on routes
-router.post('/routes/:id/assign-student', authorize('admin'), transportController.assignStudent);
-router.post('/routes/:id/remove-student', authorize('admin'), transportController.removeStudent);
+router.post('/routes/:id/assign-student', authorize('admin', 'transport_manager'), transportController.assignStudent);
+router.post('/routes/:id/remove-student', authorize('admin', 'transport_manager'), transportController.removeStudent);
 
 // ── Vehicles ───────────────────────────────────────────────
 router
   .route('/vehicles')
   .get(transportController.getVehicles)
-  .post(authorize('admin'), transportController.addVehicle);
+  .post(authorize('admin', 'transport_manager'), transportController.addVehicle);
 
-router.put('/vehicles/:id', authorize('admin'), transportController.updateVehicle);
+router.put('/vehicles/:id', authorize('admin', 'transport_manager'), transportController.updateVehicle);
 
 module.exports = router;

@@ -9,25 +9,26 @@ import api from '../../services/api';
 
 const typeBadge = (type) => {
   const classes = {
-    Core: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    Elective: 'bg-purple-50 text-purple-700 border-purple-200',
-    'Co-curricular': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    core: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    elective: 'bg-purple-50 text-purple-700 border-purple-200',
+    co_curricular: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   };
+  const labels = { core: 'Core', elective: 'Elective', co_curricular: 'Co-curricular' };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${classes[type] || classes.Core}`}>
-      {type || 'Core'}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${classes[type] || classes.core}`}>
+      {labels[type] || 'Core'}
     </span>
   );
 };
 
 const statusBadge = (status) => {
   const classes = {
-    Active: 'bg-emerald-50 text-emerald-700',
-    Inactive: 'bg-gray-100 text-gray-600',
+    active: 'bg-emerald-50 text-emerald-700',
+    inactive: 'bg-gray-100 text-gray-600',
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classes[status] || classes.Inactive}`}>
-      {status || 'Inactive'}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classes[status] || classes.inactive}`}>
+      {status === 'active' ? 'Active' : 'Inactive'}
     </span>
   );
 };
@@ -43,10 +44,10 @@ const SubjectList = () => {
   const [form, setForm] = useState({
     code: '',
     name: '',
-    type: 'Core',
+    type: 'core',
     credits: '',
     maxMarks: '100',
-    status: 'Active',
+    status: 'active',
   });
 
   const filteredSubjects = useMemo(() => {
@@ -67,7 +68,7 @@ const SubjectList = () => {
 
   const openCreate = () => {
     setEditingSubject(null);
-    setForm({ code: '', name: '', type: 'Core', credits: '', maxMarks: '100', status: 'Active' });
+    setForm({ code: '', name: '', type: 'core', credits: '', maxMarks: '100', status: 'active' });
     setShowForm(true);
   };
 
@@ -76,10 +77,10 @@ const SubjectList = () => {
     setForm({
       code: subject.code || '',
       name: subject.name || '',
-      type: subject.type || 'Core',
+      type: subject.type || 'core',
       credits: subject.credits || '',
       maxMarks: subject.maxMarks || '100',
-      status: subject.status || 'Active',
+      status: subject.status || 'active',
     });
     setShowForm(true);
   };
@@ -195,9 +196,9 @@ const SubjectList = () => {
               value={form.type}
               onChange={handleChange}
               options={[
-                { value: 'Core', label: 'Core' },
-                { value: 'Elective', label: 'Elective' },
-                { value: 'Co-curricular', label: 'Co-curricular' },
+                { value: 'core', label: 'Core' },
+                { value: 'elective', label: 'Elective' },
+                { value: 'co_curricular', label: 'Co-curricular' },
               ]}
             />
             <InputField label="Credits" name="credits" type="number" value={form.credits} onChange={handleChange} />
@@ -208,8 +209,8 @@ const SubjectList = () => {
               value={form.status}
               onChange={handleChange}
               options={[
-                { value: 'Active', label: 'Active' },
-                { value: 'Inactive', label: 'Inactive' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
               ]}
             />
           </div>

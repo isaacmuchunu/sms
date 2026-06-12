@@ -151,7 +151,7 @@ exports.getByDate = catchAsync(async (req, res) => {
     present: records.filter((r) => r.status === 'present').length,
     absent: records.filter((r) => r.status === 'absent').length,
     late: records.filter((r) => r.status === 'late').length,
-    halfDay: records.filter((r) => r.status === 'halfDay').length,
+    halfDay: records.filter((r) => r.status === 'halfDay' || r.status === 'half_day').length,
     notMarked: allStudents.length - records.length,
   };
 
@@ -196,7 +196,7 @@ exports.getByStudent = catchAsync(async (req, res) => {
     present: records.filter((r) => r.status === 'present').length,
     absent: records.filter((r) => r.status === 'absent').length,
     late: records.filter((r) => r.status === 'late').length,
-    halfDay: records.filter((r) => r.status === 'halfDay').length,
+    halfDay: records.filter((r) => r.status === 'halfDay' || r.status === 'half_day').length,
   };
   summary.percentage = total > 0 ? ((summary.present + summary.late * 0.5) / total * 100).toFixed(2) : 0;
 
@@ -255,7 +255,7 @@ exports.getMonthlyReport = catchAsync(async (req, res) => {
           $sum: { $cond: [{ $eq: ['$status', 'late'] }, 1, 0] },
         },
         halfDay: {
-          $sum: { $cond: [{ $eq: ['$status', 'halfDay'] }, 1, 0] },
+          $sum: { $cond: [{ $in: ['$status', ['halfDay', 'half_day']] }, 1, 0] },
         },
         total: { $sum: 1 },
       },
@@ -339,7 +339,7 @@ exports.getDefaulters = catchAsync(async (req, res) => {
           $sum: { $cond: [{ $eq: ['$status', 'late'] }, 1, 0] },
         },
         halfDay: {
-          $sum: { $cond: [{ $eq: ['$status', 'halfDay'] }, 1, 0] },
+          $sum: { $cond: [{ $in: ['$status', ['halfDay', 'half_day']] }, 1, 0] },
         },
         total: { $sum: 1 },
       },
@@ -400,7 +400,7 @@ exports.getClassSummary = catchAsync(async (req, res) => {
   const present = records.filter((r) => r.status === 'present').length;
   const absent = records.filter((r) => r.status === 'absent').length;
   const late = records.filter((r) => r.status === 'late').length;
-  const halfDay = records.filter((r) => r.status === 'halfDay').length;
+  const halfDay = records.filter((r) => r.status === 'halfDay' || r.status === 'half_day').length;
   const notMarked = totalStudents - records.length;
 
   const summary = {

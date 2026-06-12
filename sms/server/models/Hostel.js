@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 // ── Room Schema ──────────────────────────────────────────────
 const roomSchema = new mongoose.Schema(
   {
-    roomNo: {
+    roomNumber: {
       type: String,
       required: [true, 'Room number is required'],
       trim: true,
@@ -22,7 +22,7 @@ const roomSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['single', 'double', 'triple', 'dormitory'],
+      enum: ['single', 'double', 'triple', 'dormitory', 'standard'],
       required: [true, 'Room type is required'],
     },
     capacity: {
@@ -32,21 +32,19 @@ const roomSchema = new mongoose.Schema(
     },
     occupants: [
       {
-        student: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'Student',
-          required: true,
-        },
-        occupiedFrom: {
-          type: Date,
-          default: Date.now,
-        },
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Student',
       },
     ],
-    rentPerBed: {
+    monthlyRent: {
       type: Number,
-      required: [true, 'Rent per bed is required'],
+      default: 0,
       min: [0, 'Rent cannot be negative'],
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Description cannot exceed 1000 characters'],
     },
     facilities: [
       {
@@ -56,7 +54,7 @@ const roomSchema = new mongoose.Schema(
     ],
     status: {
       type: String,
-      enum: ['available', 'full', 'maintenance'],
+      enum: ['available', 'partially_occupied', 'occupied', 'full', 'maintenance'],
       default: 'available',
     },
   },
@@ -68,7 +66,7 @@ const roomSchema = new mongoose.Schema(
 );
 
 // Compound unique index: roomNo + block
-roomSchema.index({ roomNo: 1, block: 1 }, { unique: true });
+roomSchema.index({ roomNumber: 1, block: 1 }, { unique: true });
 roomSchema.index({ block: 1 });
 roomSchema.index({ status: 1 });
 roomSchema.index({ type: 1 });
@@ -109,6 +107,15 @@ const visitorLogSchema = new mongoose.Schema(
       ref: 'Student',
       required: [true, 'Student reference is required'],
     },
+    room: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Room',
+      default: null,
+    },
+    visitDate: {
+      type: Date,
+      default: Date.now,
+    },
     entryTime: {
       type: Date,
       required: [true, 'Entry time is required'],
@@ -127,7 +134,27 @@ const visitorLogSchema = new mongoose.Schema(
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Approved by is required'],
+      default: null,
+    },
+    checkedInBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    checkedOutBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    idProofType: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'ID proof type cannot exceed 50 characters'],
+    },
+    idProofNumber: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'ID proof number cannot exceed 100 characters'],
     },
     status: {
       type: String,
@@ -145,6 +172,7 @@ visitorLogSchema.index({ student: 1 });
 visitorLogSchema.index({ status: 1 });
 visitorLogSchema.index({ entryTime: -1 });
 visitorLogSchema.index({ approvedBy: 1 });
+visitorLogSchema.index({ visitDate: -1 });
 
 const VisitorLog = mongoose.model('VisitorLog', visitorLogSchema);
 

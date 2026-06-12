@@ -10,28 +10,30 @@ import api from '../../services/api';
 
 const typeBadge = (type) => {
   const classes = {
-    'Unit Test': 'bg-blue-50 text-blue-700 border-blue-200',
-    'Mid Term': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    'Final': 'bg-purple-50 text-purple-700 border-purple-200',
-    'Quiz': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    unit_test: 'bg-blue-50 text-blue-700 border-blue-200',
+    mid_term: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    final: 'bg-purple-50 text-purple-700 border-purple-200',
+    practical: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   };
+  const labels = { unit_test: 'Unit Test', mid_term: 'Mid Term', final: 'Final', practical: 'Practical', oral: 'Oral' };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${classes[type] || classes['Unit Test']}`}>
-      {type || 'Unit Test'}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${classes[type] || classes.unit_test}`}>
+      {labels[type] || 'Unit Test'}
     </span>
   );
 };
 
 const statusBadge = (status) => {
   const classes = {
-    Upcoming: 'bg-blue-50 text-blue-700',
-    Ongoing: 'bg-amber-50 text-amber-700',
-    Completed: 'bg-emerald-50 text-emerald-700',
-    Published: 'bg-purple-50 text-purple-700',
+    upcoming: 'bg-blue-50 text-blue-700',
+    ongoing: 'bg-amber-50 text-amber-700',
+    completed: 'bg-emerald-50 text-emerald-700',
+    published: 'bg-purple-50 text-purple-700',
   };
+  const labels = { upcoming: 'Upcoming', ongoing: 'Ongoing', completed: 'Completed', published: 'Published' };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classes[status] || classes.Upcoming}`}>
-      {status || 'Upcoming'}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classes[status] || classes.upcoming}`}>
+      {labels[status] || 'Upcoming'}
     </span>
   );
 };
@@ -47,18 +49,26 @@ const mockExams = [
 
 const ExamList = () => {
   const { data: examsFromApi, loading, error, refetch } = useFetch('/exams');
+  const { data: classes = [] } = useFetch('/classes');
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [publishId, setPublishId] = useState(null);
-  const [form, setForm] = useState({ name: '', type: 'Unit Test', class: '', startDate: '', endDate: '' });
+  const [form, setForm] = useState({ name: '', type: 'unit_test', class: '', academicYear: '2024-2025', startDate: '', endDate: '' });
   const [formLoading, setFormLoading] = useState(false);
 
   const exams = examsFromApi || mockExams;
+  const classOptions = Array.isArray(classes) && classes.length > 0
+    ? classes.map((cls) => ({ value: cls._id, label: `${cls.name} - Section ${cls.section}` }))
+    : [];
+  const classLabel = (value) =>
+    typeof value === 'object' && value
+      ? `${value.name} - ${value.section}`
+      : value || '-';
 
   const filteredExams = useMemo(() => {
     if (!searchTerm) return exams;
     const lower = searchTerm.toLowerCase();
-    return exams.filter((e) => e.name?.toLowerCase().includes(lower) || e.class?.includes(lower));
+    return exams.filter((e) => e.name?.toLowerCase().includes(lower) || classLabel(e.class).toLowerCase().includes(lower));
   }, [exams, searchTerm]);
 
   const handleSubmit = async (e) => {
@@ -89,7 +99,7 @@ const ExamList = () => {
   const columns = [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'type', label: 'Type', render: (val) => typeBadge(val) },
-    { key: 'class', label: 'Class', sortable: true, render: (val) => `Class ${val}` },
+    { key: 'class', label: 'Class', sortable: true, render: (val) => classLabel(val) },
     {
       key: 'startDate',
       label: 'Duration',
@@ -106,7 +116,7 @@ const ExamList = () => {
     <>
       <button className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View"><Eye size={16} /></button>
       <button className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Edit"><Pencil size={16} /></button>
-      {row.status !== 'Published' && (
+      {row.status !== 'published' && (
         <button
           onClick={() => setPublishId(row._id)}
           className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
@@ -159,10 +169,11 @@ const ExamList = () => {
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value })}
               options={[
-                { value: 'Unit Test', label: 'Unit Test' },
-                { value: 'Mid Term', label: 'Mid Term' },
-                { value: 'Final', label: 'Final' },
-                { value: 'Quiz', label: 'Quiz' },
+                { value: 'unit_test', label: 'Unit Test' },
+                { value: 'mid_term', label: 'Mid Term' },
+                { value: 'final', label: 'Final' },
+                { value: 'practical', label: 'Practical' },
+                { value: 'oral', label: 'Oral' },
               ]}
             />
             <SelectField
@@ -170,7 +181,7 @@ const ExamList = () => {
               name="class"
               value={form.class}
               onChange={(e) => setForm({ ...form, class: e.target.value })}
-              options={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: `Class ${i + 1}` }))}
+              options={classOptions}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">

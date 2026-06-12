@@ -20,7 +20,7 @@ exports.getRoutes = catchAsync(async (req, res) => {
 
   const [routes, total] = await Promise.all([
     Route.find(query)
-      .populate('vehicle', 'registrationNumber type capacity')
+      .populate('vehicle', 'registrationNumber type capacity driverName')
       .populate('students', 'firstName lastName admissionNo')
       .sort('routeName')
       .skip(skip)
@@ -45,38 +45,70 @@ exports.getRoutes = catchAsync(async (req, res) => {
 exports.createRoute = catchAsync(async (req, res) => {
   const {
     routeName,
+    name,
     routeCode,
+    code,
     vehicle,
+    vehicleRegNo,
+    driver,
     stops,
     startPoint,
     endPoint,
     totalDistance,
     estimatedTime,
     fare,
+    fee,
     description,
   } = req.body;
 
+  const normalizedRouteName = routeName || name;
+  const normalizedRouteCode = routeCode || code;
+
   // Check route code unique
-  const existing = await Route.findOne({ routeCode });
+  const existing = await Route.findOne({ routeCode: normalizedRouteCode });
   if (existing) {
     throw new ApiError('Route with this code already exists', 400);
   }
 
+  let vehicleId = vehicle || null;
+  if (!vehicleId && vehicleRegNo) {
+    const vehicleDoc = await Vehicle.findOneAndUpdate(
+      { registrationNumber: vehicleRegNo },
+      {
+        registrationNumber: vehicleRegNo,
+        type: 'bus',
+        capacity: 50,
+        driverName: driver,
+        status: 'active',
+      },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    );
+    vehicleId = vehicleDoc._id;
+  }
+
+  const normalizedStops = Array.isArray(stops)
+    ? stops.map((stop, index) =>
+        typeof stop === 'string'
+          ? { name: stop, sequence: index + 1 }
+          : { ...stop, sequence: stop.sequence || index + 1 }
+      )
+    : [];
+
   const route = await Route.create({
-    routeName,
-    routeCode,
-    vehicle,
-    stops: stops || [],
+    routeName: normalizedRouteName,
+    routeCode: normalizedRouteCode,
+    vehicle: vehicleId,
+    stops: normalizedStops,
     startPoint,
     endPoint,
     totalDistance,
     estimatedTime,
-    fare,
+    fare: fare ?? fee ?? 0,
     description,
   });
 
   const populatedRoute = await Route.findById(route._id)
-    .populate('vehicle', 'registrationNumber type capacity');
+    .populate('vehicle', 'registrationNumber type capacity driverName');
 
   return ApiResponse.success(res, { route: populatedRoute }, 'Route created successfully', 201);
 });
@@ -119,7 +151,7 @@ exports.updateRoute = catchAsync(async (req, res) => {
     req.params.id,
     updateData,
     { new: true, runValidators: true }
-  ).populate('vehicle', 'registrationNumber type capacity');
+  ).populate('vehicle', 'registrationNumber type capacity driverName');
 
   return ApiResponse.success(res, { route: updatedRoute }, 'Route updated successfully');
 });
@@ -243,6 +275,7 @@ exports.getVehicles = catchAsync(async (req, res) => {
 exports.addVehicle = catchAsync(async (req, res) => {
   const {
     registrationNumber,
+    registrationNo,
     type,
     capacity,
     model,
@@ -257,13 +290,14 @@ exports.addVehicle = catchAsync(async (req, res) => {
   } = req.body;
 
   // Check registration number unique
-  const existing = await Vehicle.findOne({ registrationNumber });
+  const normalizedRegistrationNumber = registrationNumber || registrationNo;
+  const existing = await Vehicle.findOne({ registrationNumber: normalizedRegistrationNumber });
   if (existing) {
     throw new ApiError('Vehicle with this registration number already exists', 400);
   }
 
   const vehicle = await Vehicle.create({
-    registrationNumber,
+    registrationNumber: normalizedRegistrationNumber,
     type,
     capacity,
     model,

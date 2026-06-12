@@ -1,24 +1,24 @@
 const express = require('express');
 const router = express.Router();
 const reportController = require('../controllers/reportController');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 
 // All routes are protected
 router.use(authenticate);
 
 // Dashboard statistics
-router.get('/dashboard', reportController.getDashboardStats);
+router.get('/dashboard', authorize('admin', 'teacher', 'accountant'), reportController.getDashboardStats);
 
 // Student statistics
-router.get('/students', reportController.getStudentStats);
+router.get('/students', authorize('admin', 'teacher'), reportController.getStudentStats);
 
 // Fee statistics
-router.get('/fees', reportController.getFeeStats);
+router.get('/fees', authorize('admin', 'accountant'), reportController.getFeeStats);
 
 // Attendance statistics
-router.get('/attendance', reportController.getAttendanceStats);
+router.get('/attendance', authorize('admin', 'teacher'), reportController.getAttendanceStats);
 
 // Exam statistics
-router.get('/exams', reportController.getExamStats);
+router.get('/exams', authorize('admin', 'teacher'), reportController.getExamStats);
 
 module.exports = router;

@@ -33,6 +33,7 @@ const studentSchema = new mongoose.Schema(
       type: String,
       enum: ['male', 'female', 'other'],
       required: [true, 'Gender is required'],
+      set: (value) => (typeof value === 'string' ? value.toLowerCase() : value),
     },
     bloodGroup: {
       type: String,
@@ -44,8 +45,14 @@ const studentSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['general', 'sc', 'st', 'obc'],
+      enum: ['general', 'sc', 'st', 'obc', 'ews'],
       default: 'general',
+      set: (value) => (typeof value === 'string' ? value.toLowerCase() : value),
+    },
+    aadhaarNo: {
+      type: String,
+      trim: true,
+      maxlength: [20, 'Aadhaar number cannot exceed 20 characters'],
     },
     photo: {
       type: String,
@@ -146,13 +153,22 @@ const studentSchema = new mongoose.Schema(
     },
     // Hostel
     hostelRoom: {
-      type: String,
-      trim: true,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Room',
+      default: null,
     },
     // Transport
     transportRoute: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Transport',
+      ref: 'Route',
+      default: null,
+    },
+    transportStop: {
+      type: String,
+      trim: true,
+    },
+    hostelAllocationDate: {
+      type: Date,
       default: null,
     },
     status: {
