@@ -1,0 +1,167 @@
+const express = require('express');
+const dotenv = require('dotenv');
+const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const morgan = require('morgan');
+const mongoSanitize = require('express-mongo-sanitize');
+const cookieParser = require('cookie-parser');
+
+// Load env vars
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: './.env' });
+}
+
+// Import database connection
+const connectDB = require('./config/db');
+
+// Import route files
+const authRoutes = require('./routes/auth');
+const studentRoutes = require('./routes/students');
+const teacherRoutes = require('./routes/teachers');
+const classRoutes = require('./routes/classes');
+const subjectRoutes = require('./routes/subjects');
+const attendanceRoutes = require('./routes/attendance');
+const examRoutes = require('./routes/exams');
+const feeRoutes = require('./routes/fees');
+const libraryRoutes = require('./routes/library');
+const transportRoutes = require('./routes/transport');
+const hostelRoutes = require('./routes/hostel');
+const reportRoutes = require('./routes/reports');
+const notificationRoutes = require('./routes/notifications');
+
+// Import error handler
+const { errorHandler } = require('./middleware/error');
+
+// Create Express app
+const app = express();
+
+// ── Global Middleware ──────────────────────────────────────
+
+// Security headers
+app.use(helmet());
+
+// Enable CORS
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+// Body parser
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Cookie parser
+app.use(cookieParser());
+
+// Data sanitization against NoSQL injection
+app.use(mongoSanitize());
+
+// Compression
+app.use(compression());
+
+// Logging
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
+}
+
+// ── API Routes ─────────────────────────────────────────────
+
+// Health check
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'School Management System API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+  });
+});
+
+// API v1 routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/students', studentRoutes);
+app.use('/api/v1/teachers', teacherRoutes);
+app.use('/api/v1/classes', classRoutes);
+app.use('/api/v1/subjects', subjectRoutes);
+app.use('/api/v1/attendance', attendanceRoutes);
+app.use('/api/v1/exams', examRoutes);
+app.use('/api/v1/fees', feeRoutes);
+app.use('/api/v1/library', libraryRoutes);
+app.use('/api/v1/transport', transportRoutes);
+app.use('/api/v1/hostel', hostelRoutes);
+app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+
+// ── Error Handling ─────────────────────────────────────────
+
+// Handle 404 - Route not found
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`,
+  });
+});
+
+// Global error handler
+app.use(errorHandler);
+
+// ── Server Startup ─────────────────────────────────────────
+
+const PORT = process.env.PORT || 5000;
+
+// Connect to database and start server
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    const server = app.listen(PORT, () => {
+      console.log(`
+========================================
+  School Management System API Server
+========================================
+  Environment: ${process.env.NODE_ENV || 'development'}
+  Port:        ${PORT}
+  API Base:    http://localhost:${PORT}/api/v1
+  Health:      http://localhost:${PORT}/health
+========================================
+      `);
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (err) => {
+      console.error('UNHANDLED REJECTION! Shutting down...');
+      console.error(err.name, err.message);
+      server.close(() => {
+        process.exit(1);
+      });
+    });
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (err) => {
+      console.error('UNCAUGHT EXCEPTION! Shutting down...');
+      console.error(err.name, err.message);
+      process.exit(1);
+    });
+
+    // Handle SIGTERM
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM received. Shutting down gracefully...');
+      server.close(() => {
+        console.log('Process terminated.');
+      });
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
+
+module.exports = app;
